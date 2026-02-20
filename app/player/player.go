@@ -28,6 +28,7 @@ type Player struct {
 	Canvas       *canvas.Image
 	window       fyne.Window
 	renderPaused atomic.Bool
+	playbackID   atomic.Uint64
 	baseSize     fyne.Size
 	zoom         float32
 }
@@ -60,15 +61,17 @@ func (p *Player) Play(path string) {
 	}
 
 	lower := strings.ToLower(path)
+	playbackID := p.beginPlayback()
+	if strings.HasSuffix(lower, ".gif") {
+		PlayGIF(p, path, playbackID)
+	} else if strings.HasSuffix(lower, ".webp") {
+		PlayWebP(p, path, playbackID)
+	} else if strings.HasSuffix(lower, ".png") || strings.HasSuffix(lower, ".jpg") || strings.HasSuffix(lower, ".jpeg") {
+		PlayImage(p, path, playbackID)
+	}
+
 	// 记录本次播放的图，下次打开app自动用
 	p.app.Preferences().SetString(lastImagePathKey, path)
-	if strings.HasSuffix(lower, ".gif") {
-		PlayGIF(p, path)
-	} else if strings.HasSuffix(lower, ".webp") {
-		PlayWebP(p, path)
-	} else if strings.HasSuffix(lower, ".png") || strings.HasSuffix(lower, ".jpg") || strings.HasSuffix(lower, ".jpeg") {
-		PlayImage(p, path)
-	}
 }
 
 func (p *Player) PlayLast() {
@@ -111,10 +114,6 @@ func (p *Player) AdjustScaleByScroll(ev *fyne.ScrollEvent) {
 		return
 	}
 	p.adjustScaleAt(-zoomStep, ev.AbsolutePosition)
-}
-
-func (p *Player) adjustScale(delta float32) {
-	p.adjustScaleAt(delta, fyne.Position{})
 }
 
 func (p *Player) adjustScaleAt(delta float32, anchor fyne.Position) {
@@ -212,7 +211,15 @@ func toScreenPixels(v, scale float32) int {
 	return int(math.Round(float64(v * scale)))
 }
 
-func PlayImage(p *Player, path string) {
+func (p *Player) beginPlayback() uint64 {
+	return p.playbackID.Add(1)
+}
+
+func (p *Player) isPlaybackActive(id uint64) bool {
+	return p.playbackID.Load() == id
+}
+
+func PlayImage(p *Player, path string, playbackID uint64) {
 	f, err := os.Open(path)
 	if err != nil {
 		log.Printf("open image failed: %v", err)
@@ -225,8 +232,14 @@ func PlayImage(p *Player, path string) {
 		log.Printf("decode image failed: %v", err)
 		return
 	}
+	if !p.isPlaybackActive(playbackID) {
+		return
+	}
 
 	fyne.Do(func() {
+		if !p.isPlaybackActive(playbackID) {
+			return
+		}
 		b := img.Bounds()
 		p.updateBaseSize(b.Dx(), b.Dy())
 		p.Canvas.Image = img

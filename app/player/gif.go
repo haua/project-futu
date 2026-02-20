@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2"
 )
 
-func PlayGIF(p *Player, path string) {
+func PlayGIF(p *Player, path string, playbackID uint64) {
 	f, err := os.Open(path)
 	if err != nil {
 		log.Printf("open gif failed: %v", err)
@@ -30,15 +30,27 @@ func PlayGIF(p *Player, path string) {
 	if len(frames) == 0 {
 		return
 	}
+	if !p.isPlaybackActive(playbackID) {
+		return
+	}
 
 	fyne.Do(func() {
+		if !p.isPlaybackActive(playbackID) {
+			return
+		}
 		p.updateBaseSize(g.Config.Width, g.Config.Height)
 	})
 
-	go func() {
-		for {
+	go func(currentID uint64) {
+		for p.isPlaybackActive(currentID) {
 			for i := range frames {
+				if !p.isPlaybackActive(currentID) {
+					return
+				}
 				for p.RenderPaused() {
+					if !p.isPlaybackActive(currentID) {
+						return
+					}
 					time.Sleep(10 * time.Millisecond)
 				}
 
@@ -49,13 +61,16 @@ func PlayGIF(p *Player, path string) {
 				}
 
 				fyne.Do(func() {
+					if !p.isPlaybackActive(currentID) {
+						return
+					}
 					p.Canvas.Image = frame
 					p.Canvas.Refresh()
 				})
 				time.Sleep(delay)
 			}
 		}
-	}()
+	}(playbackID)
 }
 
 func composeGIFFrames(g *gif.GIF) []image.Image {
