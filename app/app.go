@@ -7,13 +7,16 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"github.com/haua/futu/app/drag"
 	"github.com/haua/futu/app/player"
+	"github.com/haua/futu/app/utils"
 )
 
 type FloatingWindow struct {
 	Window fyne.Window
 	Player *player.Player
 	// 是否处于编辑模式
-	editMode atomic.Bool
+	editMode    atomic.Bool
+	alwaysOnTop atomic.Bool
+	topMostCtl  *utils.WindowTopMost
 }
 
 func NewFloatingWindow(a fyne.App) *FloatingWindow {
@@ -33,8 +36,9 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 	player_instance := player.NewPlayer(a, w)
 
 	fw := &FloatingWindow{
-		Window: w,
-		Player: player_instance,
+		Window:     w,
+		Player:     player_instance,
+		topMostCtl: utils.NewWindowTopMost(w),
 	}
 	fw.editMode.Store(true)
 
@@ -43,7 +47,8 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 		player_instance.Canvas,
 		player_instance.SetRenderPaused,
 		player_instance.AdjustScaleByScroll,
-		fw.IsEditMode))
+		fw.IsEditMode,
+	))
 	w.CenterOnScreen()
 
 	return fw
@@ -67,4 +72,24 @@ func (f *FloatingWindow) ToggleEditMode() bool {
 			return next
 		}
 	}
+}
+
+func (f *FloatingWindow) IsAlwaysOnTop() bool {
+	return f.alwaysOnTop.Load()
+}
+
+func (f *FloatingWindow) SetAlwaysOnTop(enabled bool) bool {
+	if f.topMostCtl == nil || !f.topMostCtl.Set(enabled) {
+		return false
+	}
+	f.alwaysOnTop.Store(enabled)
+	return true
+}
+
+func (f *FloatingWindow) ToggleAlwaysOnTop() bool {
+	next := !f.IsAlwaysOnTop()
+	if f.SetAlwaysOnTop(next) {
+		return next
+	}
+	return f.IsAlwaysOnTop()
 }

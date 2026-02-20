@@ -20,7 +20,26 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 		return
 	}
 
-	menu := fyne.NewMenu("Futu",
+	topMostLabel := func(enabled bool) string {
+		if enabled {
+			return "置顶：开"
+		}
+		return "置顶：关"
+	}
+
+	var menu *fyne.Menu
+	var topMostItem *fyne.MenuItem
+	topMostItem = fyne.NewMenuItem(topMostLabel(win.IsAlwaysOnTop()), func() {
+		next := !win.IsAlwaysOnTop()
+		if !win.SetAlwaysOnTop(next) {
+			return
+		}
+		topMostItem.Label = topMostLabel(next)
+		desk.SetSystemTrayMenu(menu)
+	})
+
+	menu = fyne.NewMenu("Futu",
+		topMostItem,
 		fyne.NewMenuItem("更换图片", func() {
 			// fyne用的是自己绘制的文件选择器，不好看
 			// 这个 sqweek.File 才是系统原生的，好用
