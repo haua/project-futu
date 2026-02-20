@@ -155,6 +155,9 @@ func (p *Player) updateBaseSize(width, height int) {
 		return
 	}
 
+	oldSize := p.Canvas.Size()
+	oldPos, canMove := getWindowPosition(p.window)
+
 	targetWidth := p.Canvas.Size().Width
 	if targetWidth <= 0 {
 		targetWidth = p.baseSize.Width
@@ -166,7 +169,13 @@ func (p *Player) updateBaseSize(width, height int) {
 	} else {
 		p.zoom = 1.0
 	}
+	newSize := p.scaledSizeForZoom(p.zoom)
 	p.applyScaledSize()
+	if canMove {
+		nextX := oldPos.X + (oldSize.Width-newSize.Width)/2
+		nextY := oldPos.Y + (oldSize.Height-newSize.Height)/2
+		moveWindowTo(p.window, nextX, nextY)
+	}
 }
 
 func (p *Player) applyScaledSize() {
