@@ -3,7 +3,6 @@ package player
 import (
 	"log"
 	"os"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"golang.org/x/image/webp"
@@ -23,13 +22,8 @@ func PlayWebP(p *Player, path string) {
 		return
 	}
 
-	go func() {
-		for {
-			fyne.Do(func() {
-				p.Canvas.Image = img
-				p.Canvas.Refresh()
-			})
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
+	fyne.Do(func() {
+		p.Canvas.Image = img
+		p.Canvas.Refresh()
+	})
 }

@@ -1,6 +1,6 @@
 package utils
 
-// 创建一个隐藏窗口，文件选择器绑定到这个窗口中
+// 创建一个临时窗口，用来承载设置界面
 
 import "fyne.io/fyne/v2"
 

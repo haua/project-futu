@@ -7,7 +7,7 @@
 
 ## 特性
 
-- 轻量级单文件可执行程序（约 8-12MB）
+- 轻量级单文件可执行程序，无需安装
 - 窗口置顶显示，始终在所有窗口上方
 - 支持透明度调节
 - 支持缩放
@@ -15,19 +15,28 @@
 - 右键点击关闭，或按 ESC 退出
 - 无需安装，免配置运行
 
+### 配置存储
+
+存储在 C:\Users\<用户名>\AppData\Roaming\fyne\com.futu.desktop
+
 ### todo
 
-1. 真正无边框桌面贴纸效果+拖拽移动
-2. 使用CGO的方式点击穿透
-3. 设置界面，可以设置开机自启
-4. 播放器 goroutine 安全退出（防泄漏）
-5. 添加应用版本信息（公司名 / 描述 / 版本号）
-6. 写一个CI 跨平台自动编译脚本，dist 目录一键打包，自动发布 bat（含 git tag）
-7. exe 内嵌图标（.ico）
-8. 拖拽文件到浮图直接播放（这个要设置开关）
-9. 右键托盘 → 最近 5 个 GIF
-10. [done]文件选择框要记住上次位置
-11. 现在打包不会把图标打包进去，把打包后的exe挪个位置，就找不到图标了。
+1. 真正无边框桌面贴纸效果
+2. 不显示任务栏图标
+3. 拖拽移动
+4. 置顶
+5. 导入gif后，窗口尺寸调整成跟gif一样
+6. 使用CGO的方式点击穿透
+7. 设置界面，可以设置开机自启
+8. 播放器 goroutine 安全退出（防泄漏）
+9. 添加应用版本信息（公司名 / 描述 / 版本号）
+10. 写一个CI 跨平台自动编译脚本，dist 目录一键打包，自动发布 bat（含 git tag）
+11. exe 内嵌图标（.ico）
+12. 拖拽文件到浮图直接播放（这个要设置开关）
+13. 右键托盘 → 最近 5 个 GIF
+14. [done]文件选择框要记住上次位置
+15. 现在打包不会把图标打包进去，把打包后的exe挪个位置，就找不到图标了。
+16. 启动应用记住上次打开的图片
 
 ## AI生成提示语
 
@@ -41,16 +50,22 @@
 
 1. 安装fyne：https://docs.fyne.io/started/quick/ （注意，安装后确保PATH变量中，`C:\msys64\mingw64\bin`在`~\go\bin`前面）
 
+### 调试
+
+```cmd
+.\cmd\run.bat
+```
+
 ### Windows
 
 ```bash
 # 32位
 set GOARCH=386
-go build -ldflags="-s -w" -o futu-386.exe ./cmd/futu
+go build -ldflags="-s -w" -o futu-386.exe ./main
 
 # 64位
 set GOARCH=amd64
-go build -ldflags="-s -w" -o futu-amd64.exe ./cmd/futu
+go build -ldflags="-s -w" -o futu-amd64.exe ./main
 ```
 
 ### 交叉编译
@@ -58,7 +73,7 @@ go build -ldflags="-s -w" -o futu-amd64.exe ./cmd/futu
 从 Linux/Mac 编译 Windows 版本:
 
 ```bash
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o futu.exe ./cmd/futu
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o futu.exe ./main
 ```
 
 ## 优化体积
@@ -66,7 +81,7 @@ GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o futu.exe ./cmd/futu
 使用以下选项可以进一步减小程序体积:
 
 ```bash
-go build -ldflags="-s -w -H=windowsgui" -o futu.exe ./cmd/futu
+go build -ldflags="-s -w -H=windowsgui" -o futu.exe ./main
 ```
 
 参数说明:
@@ -77,7 +92,7 @@ go build -ldflags="-s -w -H=windowsgui" -o futu.exe ./cmd/futu
 
 ```
 futu/
-├── cmd/futu/          # 主程序入口
+├── main.go          # 主程序入口
 ├── internal/
 │   ├── window/        # Windows API 窗口管理
 │   ├── gif/           # GIF 播放器
