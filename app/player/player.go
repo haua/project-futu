@@ -155,8 +155,17 @@ func (p *Player) updateBaseSize(width, height int) {
 		return
 	}
 
+	targetWidth := p.Canvas.Size().Width
+	if targetWidth <= 0 {
+		targetWidth = p.baseSize.Width
+	}
+
 	p.baseSize = fyne.NewSize(float32(width), float32(height))
-	p.zoom = 1.0
+	if p.baseSize.Width > 0 && targetWidth > 0 {
+		p.zoom = targetWidth / p.baseSize.Width
+	} else {
+		p.zoom = 1.0
+	}
 	p.applyScaledSize()
 }
 
