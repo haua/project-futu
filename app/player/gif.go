@@ -31,6 +31,10 @@ func PlayGIF(p *Player, path string) {
 		return
 	}
 
+	fyne.Do(func() {
+		p.updateBaseSize(g.Config.Width, g.Config.Height)
+	})
+
 	go func() {
 		for {
 			for i := range frames {

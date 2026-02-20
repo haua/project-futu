@@ -1,6 +1,8 @@
 package app
 
 import (
+	"sync/atomic"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 	"github.com/haua/futu/app/drag"
@@ -10,6 +12,8 @@ import (
 type FloatingWindow struct {
 	Window fyne.Window
 	Player *player.Player
+	// 是否处于编辑模式
+	editMode atomic.Bool
 }
 
 func NewFloatingWindow(a fyne.App) *FloatingWindow {
@@ -26,19 +30,41 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 	w.SetPadded(false) // 去掉内容内边距
 	w.SetMaster()
 
-	p := player.NewPlayer(a, w)
+	player_instance := player.NewPlayer(a, w)
 
-	w.SetContent(drag.NewWidget(w, p.Canvas, p.SetRenderPaused))
+	fw := &FloatingWindow{
+		Window: w,
+		Player: player_instance,
+	}
+	fw.editMode.Store(true)
+
+	w.SetContent(drag.NewWidget(
+		w,
+		player_instance.Canvas,
+		player_instance.SetRenderPaused,
+		player_instance.AdjustScaleByScroll,
+		fw.IsEditMode))
 	w.CenterOnScreen()
 
-	return &FloatingWindow{
-		Window: w,
-		Player: p,
-	}
+	return fw
 }
 
 func (f *FloatingWindow) Show() {
 	// 播放上一次选的图片
 	f.Player.PlayLast()
 	f.Window.Show()
+}
+
+func (f *FloatingWindow) IsEditMode() bool {
+	return f.editMode.Load()
+}
+
+func (f *FloatingWindow) ToggleEditMode() bool {
+	for {
+		current := f.editMode.Load()
+		next := !current
+		if f.editMode.CompareAndSwap(current, next) {
+			return next
+		}
+	}
 }

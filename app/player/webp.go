@@ -23,6 +23,8 @@ func PlayWebP(p *Player, path string) {
 	}
 
 	fyne.Do(func() {
+		b := img.Bounds()
+		p.updateBaseSize(b.Dx(), b.Dy())
 		p.Canvas.Image = img
 		p.Canvas.Refresh()
 	})
