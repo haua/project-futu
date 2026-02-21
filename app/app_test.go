@@ -30,6 +30,36 @@ func TestToggleEditMode(t *testing.T) {
 	}
 }
 
+func TestToggleEditMode_UpdatesTaskbarVisibility(t *testing.T) {
+	t.Parallel()
+
+	var calls []bool
+	fw := &FloatingWindow{
+		taskbarSet: func(visible bool) bool {
+			calls = append(calls, visible)
+			return true
+		},
+	}
+	fw.editMode.Store(true)
+
+	if got := fw.ToggleEditMode(); got {
+		t.Fatalf("first toggle should return false")
+	}
+	if got := fw.ToggleEditMode(); !got {
+		t.Fatalf("second toggle should return true")
+	}
+
+	if len(calls) != 2 {
+		t.Fatalf("taskbarSet calls = %d, want 2", len(calls))
+	}
+	if calls[0] {
+		t.Fatalf("first call should hide taskbar (false)")
+	}
+	if !calls[1] {
+		t.Fatalf("second call should show taskbar (true)")
+	}
+}
+
 func TestSaveWindowPosition(t *testing.T) {
 	t.Parallel()
 

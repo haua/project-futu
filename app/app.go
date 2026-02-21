@@ -34,6 +34,8 @@ type FloatingWindow struct {
 	alwaysOnTop atomic.Bool
 	topMostCtl  *utils.WindowTopMost
 	topMostSet  func(enabled bool) bool
+	taskbarCtl  *utils.WindowTaskbar
+	taskbarSet  func(visible bool) bool
 }
 
 func NewFloatingWindow(a fyne.App) *FloatingWindow {
@@ -63,8 +65,10 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 		Window:     w,
 		Player:     player_instance,
 		topMostCtl: utils.NewWindowTopMost(w),
+		taskbarCtl: utils.NewWindowTaskbar(w),
 	}
 	fw.topMostSet = fw.topMostCtl.Set
+	fw.taskbarSet = fw.taskbarCtl.SetVisible
 	fw.editMode.Store(true)
 
 	w.SetContent(drag.NewWidget(
@@ -96,6 +100,7 @@ func (f *FloatingWindow) ToggleEditMode() bool {
 		current := f.editMode.Load()
 		next := !current
 		if f.editMode.CompareAndSwap(current, next) {
+			f.applyTaskbarVisibility(next)
 			return next
 		}
 	}
@@ -130,6 +135,16 @@ func (f *FloatingWindow) applyAlwaysOnTop(enabled bool) bool {
 		return false
 	}
 	return f.topMostCtl.Set(enabled)
+}
+
+func (f *FloatingWindow) applyTaskbarVisibility(visible bool) bool {
+	if f.taskbarSet != nil {
+		return f.taskbarSet(visible)
+	}
+	if f.taskbarCtl == nil {
+		return false
+	}
+	return f.taskbarCtl.SetVisible(visible)
 }
 
 func (f *FloatingWindow) saveAlwaysOnTopPreference(enabled bool) {
