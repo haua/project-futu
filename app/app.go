@@ -48,6 +48,11 @@ type FloatingWindow struct {
 	opacitySet   func(opacity float64) bool
 	fadeLoopMu   sync.Mutex
 	fadeLoopStop chan struct{}
+	fadeStateMu  sync.Mutex
+	lastCursor   fyne.Position
+	hasCursor    bool
+	lastOpacity  uint8
+	hasOpacity   bool
 }
 
 func NewFloatingWindow(a fyne.App) *FloatingWindow {
@@ -189,6 +194,17 @@ func (f *FloatingWindow) applyMousePassthrough(enabled bool) bool {
 }
 
 func (f *FloatingWindow) applyWindowOpacity(opacity float64) bool {
+	alpha := opacityToAlpha(opacity)
+
+	f.fadeStateMu.Lock()
+	if f.hasOpacity && f.lastOpacity == alpha {
+		f.fadeStateMu.Unlock()
+		return true
+	}
+	f.lastOpacity = alpha
+	f.hasOpacity = true
+	f.fadeStateMu.Unlock()
+
 	if f.opacitySet != nil {
 		return f.opacitySet(opacity)
 	}
@@ -232,6 +248,7 @@ func (f *FloatingWindow) stopMouseFadeLoop() {
 	if stop != nil {
 		close(stop)
 	}
+	f.resetFadeState()
 }
 
 func (f *FloatingWindow) updateWindowOpacityByCursor() {
@@ -243,17 +260,45 @@ func (f *FloatingWindow) updateWindowOpacityByCursor() {
 		return
 	}
 
-	winPos, ok := getWindowPosition(f.Window)
+	cursorPos, ok := getCursorPosition()
 	if !ok {
 		return
 	}
-	cursorPos, ok := getCursorPosition()
+
+	f.fadeStateMu.Lock()
+	sameCursor := f.hasCursor && cursorPos == f.lastCursor
+	if !sameCursor {
+		f.lastCursor = cursorPos
+		f.hasCursor = true
+	}
+	f.fadeStateMu.Unlock()
+	if sameCursor {
+		return
+	}
+
+	winPos, ok := getWindowPosition(f.Window)
 	if !ok {
 		return
 	}
 	size := windowSizeInPixels(f.Window)
 	distance := cursorDistanceToRect(cursorPos, winPos, size)
 	f.applyWindowOpacity(opacityByCursorDistance(distance))
+}
+
+func (f *FloatingWindow) resetFadeState() {
+	f.fadeStateMu.Lock()
+	f.hasCursor = false
+	f.hasOpacity = false
+	f.fadeStateMu.Unlock()
+}
+
+func opacityToAlpha(opacity float64) uint8 {
+	if opacity < 0 {
+		opacity = 0
+	} else if opacity > 1 {
+		opacity = 1
+	}
+	return uint8(math.Round(opacity * 255))
 }
 
 func opacityByCursorDistance(distance float32) float64 {
