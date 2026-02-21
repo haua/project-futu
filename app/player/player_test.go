@@ -194,7 +194,7 @@ func TestNewPlayer_UsesSavedCanvasWidthForInitialZoom(t *testing.T) {
 	}{
 		{name: "normal saved width", savedWidth: 100, wantWidth: 100},
 		{name: "clamped to min zoom", savedWidth: 1, wantWidth: 40},
-		{name: "clamped to max zoom", savedWidth: 5000, wantWidth: 1000},
+		{name: "clamped to max zoom", savedWidth: 5000, wantWidth: 400},
 	}
 
 	for _, tc := range tests {
@@ -381,10 +381,10 @@ func TestUpdateBaseSize_UsesRememberedCanvasWidth(t *testing.T) {
 
 	p.updateBaseSize(100, 50)
 
-	if got := p.Canvas.Size().Width; got != 300 {
-		t.Fatalf("canvas width = %v, want 300", got)
+	if got := p.Canvas.Size().Width; got != 200 {
+		t.Fatalf("canvas width = %v, want 200", got)
 	}
-	if got := p.Canvas.Size().Height; got != 150 {
-		t.Fatalf("canvas height = %v, want 150", got)
+	if got := p.Canvas.Size().Height; got != 100 {
+		t.Fatalf("canvas height = %v, want 100", got)
 	}
 }

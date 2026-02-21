@@ -1,6 +1,7 @@
 package app
 
 import (
+	"math"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -87,6 +88,70 @@ func TestToggleEditMode_UpdatesMousePassthrough(t *testing.T) {
 	}
 	if calls[1] {
 		t.Fatalf("second call should disable passthrough (false)")
+	}
+}
+
+func TestToggleEditMode_EditModeRestoresOpaque(t *testing.T) {
+	t.Parallel()
+
+	var got []float64
+	fw := &FloatingWindow{
+		opacitySet: func(opacity float64) bool {
+			got = append(got, opacity)
+			return true
+		},
+	}
+	fw.editMode.Store(false)
+
+	if next := fw.ToggleEditMode(); !next {
+		t.Fatalf("toggle from non-edit should return true")
+	}
+	if len(got) != 1 {
+		t.Fatalf("opacitySet calls = %d, want 1", len(got))
+	}
+	if got[0] != 1 {
+		t.Fatalf("opacity value = %v, want 1", got[0])
+	}
+}
+
+func TestOpacityByCursorDistance(t *testing.T) {
+	t.Parallel()
+
+	if got := opacityByCursorDistance(-1); got != 0 {
+		t.Fatalf("opacity(-1) = %v, want 0", got)
+	}
+	if got := opacityByCursorDistance(0); got != 0 {
+		t.Fatalf("opacity(0) = %v, want 0", got)
+	}
+	if got := opacityByCursorDistance(mouseFadeRange / 2); math.Abs(got-0.5) > 1e-6 {
+		t.Fatalf("opacity(half) = %v, want 0.5", got)
+	}
+	if got := opacityByCursorDistance(mouseFadeRange); got != 1 {
+		t.Fatalf("opacity(range) = %v, want 1", got)
+	}
+	if got := opacityByCursorDistance(mouseFadeRange + 10); got != 1 {
+		t.Fatalf("opacity(range+) = %v, want 1", got)
+	}
+}
+
+func TestCursorDistanceToRect(t *testing.T) {
+	t.Parallel()
+
+	pos := fyne.NewPos(100, 200)
+	size := fyne.NewSize(300, 150)
+
+	if got := cursorDistanceToRect(fyne.NewPos(150, 220), pos, size); got != 0 {
+		t.Fatalf("inside distance = %v, want 0", got)
+	}
+	if got := cursorDistanceToRect(fyne.NewPos(90, 220), pos, size); got != 10 {
+		t.Fatalf("left distance = %v, want 10", got)
+	}
+	if got := cursorDistanceToRect(fyne.NewPos(150, 180), pos, size); got != 20 {
+		t.Fatalf("top distance = %v, want 20", got)
+	}
+	got := cursorDistanceToRect(fyne.NewPos(90, 190), pos, size)
+	if math.Abs(float64(got)-math.Hypot(10, 10)) > 1e-5 {
+		t.Fatalf("corner distance = %v, want sqrt(200)", got)
 	}
 }
 

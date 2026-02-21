@@ -1,7 +1,11 @@
 package app
 
 import (
+	"log"
+	"math"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
@@ -13,6 +17,7 @@ import (
 
 var (
 	getWindowPosition       = platform.GetWindowPosition
+	getCursorPosition       = platform.GetCursorPosition
 	moveWindowTo            = platform.MoveWindowTo
 	isWindowInVisibleBounds = platform.IsWindowInVisibleBounds
 	windowSizeInPixels      = utils.WindowSizeInPixels
@@ -23,6 +28,8 @@ const (
 	windowPosYKey   = "window.pos_y"
 	windowPosSetKey = "window.pos_set"
 	alwaysOnTopKey  = "window.always_on_top"
+	mouseFadeRange  = float32(200)
+	mouseFadeTick   = 50 * time.Millisecond
 )
 
 type FloatingWindow struct {
@@ -30,14 +37,18 @@ type FloatingWindow struct {
 	Window fyne.Window
 	Player *player.Player
 	// 是否处于编辑模式
-	editMode    atomic.Bool
-	alwaysOnTop atomic.Bool
-	topMostCtl  *utils.WindowTopMost
-	topMostSet  func(enabled bool) bool
-	taskbarCtl  *utils.WindowTaskbar
-	taskbarSet  func(visible bool) bool
-	mouseCtl    *utils.WindowMousePassthrough
-	mouseSet    func(enabled bool) bool
+	editMode     atomic.Bool
+	alwaysOnTop  atomic.Bool
+	topMostCtl   *utils.WindowTopMost
+	topMostSet   func(enabled bool) bool
+	taskbarCtl   *utils.WindowTaskbar
+	taskbarSet   func(visible bool) bool
+	mouseCtl     *utils.WindowMousePassthrough
+	mouseSet     func(enabled bool) bool
+	opacityCtl   *utils.WindowOpacity
+	opacitySet   func(opacity float64) bool
+	fadeLoopMu   sync.Mutex
+	fadeLoopStop chan struct{}
 }
 
 func NewFloatingWindow(a fyne.App) *FloatingWindow {
@@ -69,10 +80,12 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 		topMostCtl: utils.NewWindowTopMost(w),
 		taskbarCtl: utils.NewWindowTaskbar(w),
 		mouseCtl:   utils.NewWindowMousePassthrough(w),
+		opacityCtl: utils.NewWindowOpacity(w),
 	}
 	fw.topMostSet = fw.topMostCtl.Set
 	fw.taskbarSet = fw.taskbarCtl.SetVisible
 	fw.mouseSet = fw.mouseCtl.SetEnabled
+	fw.opacitySet = fw.opacityCtl.Set
 	fw.editMode.Store(true)
 
 	w.SetContent(drag.NewWidget(
@@ -93,6 +106,13 @@ func (f *FloatingWindow) Show() {
 	f.Window.Show()
 	f.restoreWindowPlacement()
 	f.restoreAlwaysOnTop()
+	if f.IsEditMode() {
+		f.stopMouseFadeLoop()
+		f.applyWindowOpacity(1.0)
+		return
+	}
+	f.startMouseFadeLoop()
+	f.updateWindowOpacityByCursor()
 }
 
 func (f *FloatingWindow) IsEditMode() bool {
@@ -106,6 +126,13 @@ func (f *FloatingWindow) ToggleEditMode() bool {
 		if f.editMode.CompareAndSwap(current, next) {
 			f.applyTaskbarVisibility(next)
 			f.applyMousePassthrough(!next)
+			if next {
+				f.stopMouseFadeLoop()
+				f.applyWindowOpacity(1.0)
+			} else {
+				f.startMouseFadeLoop()
+				f.updateWindowOpacityByCursor()
+			}
 			return next
 		}
 	}
@@ -160,6 +187,114 @@ func (f *FloatingWindow) applyMousePassthrough(enabled bool) bool {
 		return false
 	}
 	return f.mouseCtl.SetEnabled(enabled)
+}
+
+func (f *FloatingWindow) applyWindowOpacity(opacity float64) bool {
+	if f.opacitySet != nil {
+		return f.opacitySet(opacity)
+	}
+	if f.opacityCtl == nil {
+		return false
+	}
+	return f.opacityCtl.Set(opacity)
+}
+
+func (f *FloatingWindow) startMouseFadeLoop() {
+	f.fadeLoopMu.Lock()
+	if f.fadeLoopStop != nil {
+		f.fadeLoopMu.Unlock()
+		return
+	}
+	stop := make(chan struct{})
+	f.fadeLoopStop = stop
+	f.fadeLoopMu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(mouseFadeTick)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				log.Printf("hhh-ttt")
+				f.updateWindowOpacityByCursor()
+			case <-stop:
+				return
+			}
+		}
+	}()
+}
+
+func (f *FloatingWindow) stopMouseFadeLoop() {
+	f.fadeLoopMu.Lock()
+	stop := f.fadeLoopStop
+	if stop != nil {
+		f.fadeLoopStop = nil
+	}
+	f.fadeLoopMu.Unlock()
+	if stop != nil {
+		close(stop)
+	}
+}
+
+func (f *FloatingWindow) updateWindowOpacityByCursor() {
+	if f == nil || f.Window == nil {
+		return
+	}
+	if f.IsEditMode() {
+		f.applyWindowOpacity(1.0)
+		return
+	}
+
+	winPos, ok := getWindowPosition(f.Window)
+	if !ok {
+		return
+	}
+	cursorPos, ok := getCursorPosition()
+	if !ok {
+		return
+	}
+	size := windowSizeInPixels(f.Window)
+	distance := cursorDistanceToRect(cursorPos, winPos, size)
+	f.applyWindowOpacity(opacityByCursorDistance(distance))
+}
+
+func opacityByCursorDistance(distance float32) float64 {
+	if distance <= 0 {
+		return 0
+	}
+	if distance >= mouseFadeRange {
+		return 1
+	}
+	return float64(distance / mouseFadeRange)
+}
+
+func cursorDistanceToRect(cursor, winPos fyne.Position, size fyne.Size) float32 {
+	left := winPos.X
+	top := winPos.Y
+	right := winPos.X + size.Width
+	bottom := winPos.Y + size.Height
+
+	var dx float32
+	if cursor.X < left {
+		dx = left - cursor.X
+	} else if cursor.X > right {
+		dx = cursor.X - right
+	}
+
+	var dy float32
+	if cursor.Y < top {
+		dy = top - cursor.Y
+	} else if cursor.Y > bottom {
+		dy = cursor.Y - bottom
+	}
+
+	if dx == 0 {
+		return dy
+	}
+	if dy == 0 {
+		return dx
+	}
+	return float32(math.Hypot(float64(dx), float64(dy)))
 }
 
 func (f *FloatingWindow) saveAlwaysOnTopPreference(enabled bool) {
