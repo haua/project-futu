@@ -11,6 +11,13 @@ import (
 	"github.com/haua/futu/app/utils"
 )
 
+var (
+	getWindowPosition       = platform.GetWindowPosition
+	moveWindowTo            = platform.MoveWindowTo
+	isWindowInVisibleBounds = platform.IsWindowInVisibleBounds
+	windowSizeInPixels      = utils.WindowSizeInPixels
+)
+
 const (
 	windowPosXKey   = "window.pos_x"
 	windowPosYKey   = "window.pos_y"
@@ -115,7 +122,7 @@ func (f *FloatingWindow) restoreWindowPlacement() {
 	prefs := f.App.Preferences()
 	if !prefs.Bool(windowPosSetKey) {
 		f.Window.CenterOnScreen()
-		if pos, ok := platform.GetWindowPosition(f.Window); ok {
+		if pos, ok := getWindowPosition(f.Window); ok {
 			f.SaveWindowPosition(pos)
 		}
 		return
@@ -125,13 +132,13 @@ func (f *FloatingWindow) restoreWindowPlacement() {
 		float32(prefs.Float(windowPosXKey)),
 		float32(prefs.Float(windowPosYKey)),
 	)
-	size := utils.WindowSizeInPixels(f.Window)
-	if platform.IsWindowInVisibleBounds(pos, size) && platform.MoveWindowTo(f.Window, pos.X, pos.Y) {
+	size := windowSizeInPixels(f.Window)
+	if isWindowInVisibleBounds(pos, size) && moveWindowTo(f.Window, pos.X, pos.Y) {
 		return
 	}
 
 	f.Window.CenterOnScreen()
-	if centeredPos, ok := platform.GetWindowPosition(f.Window); ok {
+	if centeredPos, ok := getWindowPosition(f.Window); ok {
 		f.SaveWindowPosition(centeredPos)
 	}
 }

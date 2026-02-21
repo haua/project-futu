@@ -7,9 +7,14 @@ import (
 	"fyne.io/fyne/v2/dialog"
 )
 
+var (
+	newHostWindow      = NewHostWindow
+	showFileOpenDialog = dialog.ShowFileOpen
+)
+
 func ShowFileOpen(a fyne.App, callback func(fyne.URIReadCloser, error)) {
 	// filter := dialog.NewExtensionFileFilter([]string{".txt", ".pdf"})
 
-	host := NewHostWindow(a)
-	dialog.ShowFileOpen(callback, host)
+	host := newHostWindow(a)
+	showFileOpenDialog(callback, host)
 }

@@ -6,6 +6,12 @@ import (
 	"github.com/haua/futu/app/platform"
 )
 
+var (
+	getWindowPosition = platform.GetWindowPosition
+	getCursorPosition = platform.GetCursorPosition
+	moveWindowTo      = platform.MoveWindowTo
+)
+
 // Widget wraps a canvas object and forwards drag motion to the host window.
 type Widget struct {
 	widget.BaseWidget
@@ -56,11 +62,11 @@ func (d *Widget) Dragged(ev *fyne.DragEvent) {
 	}
 
 	if !d.dragging {
-		winPos, ok := platform.GetWindowPosition(d.window)
+		winPos, ok := getWindowPosition(d.window)
 		if !ok {
 			return
 		}
-		cursorPos, ok := platform.GetCursorPosition()
+		cursorPos, ok := getCursorPosition()
 		if !ok {
 			return
 		}
@@ -73,7 +79,7 @@ func (d *Widget) Dragged(ev *fyne.DragEvent) {
 		d.startCursor = cursorPos
 	}
 
-	cursorPos, ok := platform.GetCursorPosition()
+	cursorPos, ok := getCursorPosition()
 	if !ok {
 		return
 	}
@@ -81,7 +87,7 @@ func (d *Widget) Dragged(ev *fyne.DragEvent) {
 	dx := cursorPos.X - d.startCursor.X
 	dy := cursorPos.Y - d.startCursor.Y
 	nextPos := fyne.NewPos(d.startWin.X+dx, d.startWin.Y+dy)
-	platform.MoveWindowTo(d.window, nextPos.X, nextPos.Y)
+	moveWindowTo(d.window, nextPos.X, nextPos.Y)
 	if d.onMoved != nil {
 		d.onMoved(nextPos)
 	}

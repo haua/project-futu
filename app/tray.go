@@ -14,37 +14,67 @@ import (
 	sqweek "github.com/sqweek/dialog"
 )
 
+var (
+	loadAssetResource = utils.LoadAssetResource
+	setOnTrayTapped   = systray.SetOnTapped
+)
+
+func topMostMenuLabel(enabled bool) string {
+	if enabled {
+		return "置顶：开"
+	}
+	return "置顶：关"
+}
+
+func imageFileFilters() (string, []string) {
+	allow := []string{"png", "jpeg", "jpg", "gif", "webp"}
+	return strings.Join(allow, ","), allow
+}
+
+func trayIconName(isEdit bool) string {
+	if isEdit {
+		return "icon-edit.png"
+	}
+	return "icon.png"
+}
+
+func detectDoubleTap(lastTap, now time.Time, delay time.Duration) (bool, time.Time) {
+	if !lastTap.IsZero() && now.Sub(lastTap) <= delay {
+		return true, time.Time{}
+	}
+	return false, now
+}
+
+func setTrayIconByState(setIcon func(fyne.Resource), isEdit bool) {
+	icon := trayIconName(isEdit)
+	if trayIcon := loadAssetResource(icon); trayIcon != nil {
+		setIcon(trayIcon)
+	}
+}
+
 func SetupTray(a fyne.App, win *FloatingWindow) {
 	desk, ok := a.(desktop.App)
 	if !ok {
 		return
 	}
 
-	topMostLabel := func(enabled bool) string {
-		if enabled {
-			return "置顶：开"
-		}
-		return "置顶：关"
-	}
-
 	var menu *fyne.Menu
 	var topMostItem *fyne.MenuItem
-	topMostItem = fyne.NewMenuItem(topMostLabel(win.IsAlwaysOnTop()), func() {
+	topMostItem = fyne.NewMenuItem(topMostMenuLabel(win.IsAlwaysOnTop()), func() {
 		next := !win.IsAlwaysOnTop()
 		if !win.SetAlwaysOnTop(next) {
 			return
 		}
-		topMostItem.Label = topMostLabel(next)
+		topMostItem.Label = topMostMenuLabel(next)
 		desk.SetSystemTrayMenu(menu)
 	})
 
 	menu = fyne.NewMenu("Futu",
 		topMostItem,
 		fyne.NewMenuItem("更换图片", func() {
-			// fyne用的是自己绘制的文件选择器，不好看
-			// 这个 sqweek.File 才是系统原生的，好用
-			allow := [...]string{"png", "jpeg", "jpg", "gif", "webp"}
-			filename, err := sqweek.File().Filter(strings.Join(allow[:], ","), allow[:]...).Load()
+			// fyne 的文件选择器不是系统原生，这里用 sqweek 的系统文件选择器。
+			filterName, allow := imageFileFilters()
+			filename, err := sqweek.File().Filter(filterName, allow...).Load()
 			if err != nil {
 				return
 			}
@@ -69,17 +99,12 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 		lastTap time.Time
 		tapMu   sync.Mutex
 	)
-	systray.SetOnTapped(func() {
+	setOnTrayTapped(func() {
 		now := time.Now()
-		isDoubleTap := false
 
 		tapMu.Lock()
-		if !lastTap.IsZero() && now.Sub(lastTap) <= doubleTapDelay {
-			isDoubleTap = true
-			lastTap = time.Time{}
-		} else {
-			lastTap = now
-		}
+		isDoubleTap, nextLastTap := detectDoubleTap(lastTap, now, doubleTapDelay)
+		lastTap = nextLastTap
 		tapMu.Unlock()
 
 		if isDoubleTap {
@@ -91,11 +116,5 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 
 // 设置托盘图标
 func SetTrayIcon(desk desktop.App, isEdit bool) {
-	icon := "icon.png"
-	if isEdit {
-		icon = "icon-edit.png"
-	}
-	if trayIcon := utils.LoadAssetResource(icon); trayIcon != nil {
-		desk.SetSystemTrayIcon(trayIcon)
-	}
+	setTrayIconByState(desk.SetSystemTrayIcon, isEdit)
 }
