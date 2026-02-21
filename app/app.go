@@ -36,6 +36,8 @@ type FloatingWindow struct {
 	topMostSet  func(enabled bool) bool
 	taskbarCtl  *utils.WindowTaskbar
 	taskbarSet  func(visible bool) bool
+	mouseCtl    *utils.WindowMousePassthrough
+	mouseSet    func(enabled bool) bool
 }
 
 func NewFloatingWindow(a fyne.App) *FloatingWindow {
@@ -66,9 +68,11 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 		Player:     player_instance,
 		topMostCtl: utils.NewWindowTopMost(w),
 		taskbarCtl: utils.NewWindowTaskbar(w),
+		mouseCtl:   utils.NewWindowMousePassthrough(w),
 	}
 	fw.topMostSet = fw.topMostCtl.Set
 	fw.taskbarSet = fw.taskbarCtl.SetVisible
+	fw.mouseSet = fw.mouseCtl.SetEnabled
 	fw.editMode.Store(true)
 
 	w.SetContent(drag.NewWidget(
@@ -101,6 +105,7 @@ func (f *FloatingWindow) ToggleEditMode() bool {
 		next := !current
 		if f.editMode.CompareAndSwap(current, next) {
 			f.applyTaskbarVisibility(next)
+			f.applyMousePassthrough(!next)
 			return next
 		}
 	}
@@ -145,6 +150,16 @@ func (f *FloatingWindow) applyTaskbarVisibility(visible bool) bool {
 		return false
 	}
 	return f.taskbarCtl.SetVisible(visible)
+}
+
+func (f *FloatingWindow) applyMousePassthrough(enabled bool) bool {
+	if f.mouseSet != nil {
+		return f.mouseSet(enabled)
+	}
+	if f.mouseCtl == nil {
+		return false
+	}
+	return f.mouseCtl.SetEnabled(enabled)
 }
 
 func (f *FloatingWindow) saveAlwaysOnTopPreference(enabled bool) {

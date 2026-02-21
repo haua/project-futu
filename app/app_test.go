@@ -60,6 +60,36 @@ func TestToggleEditMode_UpdatesTaskbarVisibility(t *testing.T) {
 	}
 }
 
+func TestToggleEditMode_UpdatesMousePassthrough(t *testing.T) {
+	t.Parallel()
+
+	var calls []bool
+	fw := &FloatingWindow{
+		mouseSet: func(enabled bool) bool {
+			calls = append(calls, enabled)
+			return true
+		},
+	}
+	fw.editMode.Store(true)
+
+	if got := fw.ToggleEditMode(); got {
+		t.Fatalf("first toggle should return false")
+	}
+	if got := fw.ToggleEditMode(); !got {
+		t.Fatalf("second toggle should return true")
+	}
+
+	if len(calls) != 2 {
+		t.Fatalf("mouseSet calls = %d, want 2", len(calls))
+	}
+	if !calls[0] {
+		t.Fatalf("first call should enable passthrough (true)")
+	}
+	if calls[1] {
+		t.Fatalf("second call should disable passthrough (false)")
+	}
+}
+
 func TestSaveWindowPosition(t *testing.T) {
 	t.Parallel()
 
