@@ -3,6 +3,7 @@ package drag
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
+	"github.com/haua/futu/app/platform"
 )
 
 // Widget wraps a canvas object and forwards drag motion to the host window.
@@ -12,6 +13,7 @@ type Widget struct {
 	window        fyne.Window
 	onDragChanged func(bool)
 	onScrolled    func(*fyne.ScrollEvent)
+	onMoved       func(fyne.Position)
 	isEditMode    func() bool
 	dragging      bool
 	startCursor   fyne.Position
@@ -23,6 +25,7 @@ func NewWidget(
 	content fyne.CanvasObject,
 	onDragChanged func(bool),
 	onScrolled func(*fyne.ScrollEvent),
+	onMoved func(fyne.Position),
 	isEditMode func() bool) fyne.CanvasObject {
 
 	d := &Widget{
@@ -30,6 +33,7 @@ func NewWidget(
 		window:        w,
 		onDragChanged: onDragChanged,
 		onScrolled:    onScrolled,
+		onMoved:       onMoved,
 		isEditMode:    isEditMode,
 	}
 	d.ExtendBaseWidget(d)
@@ -52,11 +56,11 @@ func (d *Widget) Dragged(ev *fyne.DragEvent) {
 	}
 
 	if !d.dragging {
-		winPos, ok := getWindowPosition(d.window)
+		winPos, ok := platform.GetWindowPosition(d.window)
 		if !ok {
 			return
 		}
-		cursorPos, ok := getCursorPosition()
+		cursorPos, ok := platform.GetCursorPosition()
 		if !ok {
 			return
 		}
@@ -69,14 +73,18 @@ func (d *Widget) Dragged(ev *fyne.DragEvent) {
 		d.startCursor = cursorPos
 	}
 
-	cursorPos, ok := getCursorPosition()
+	cursorPos, ok := platform.GetCursorPosition()
 	if !ok {
 		return
 	}
 
 	dx := cursorPos.X - d.startCursor.X
 	dy := cursorPos.Y - d.startCursor.Y
-	moveWindowTo(d.window, d.startWin.X+dx, d.startWin.Y+dy)
+	nextPos := fyne.NewPos(d.startWin.X+dx, d.startWin.Y+dy)
+	platform.MoveWindowTo(d.window, nextPos.X, nextPos.Y)
+	if d.onMoved != nil {
+		d.onMoved(nextPos)
+	}
 }
 
 func (d *Widget) DragEnd() {

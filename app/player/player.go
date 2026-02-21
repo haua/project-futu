@@ -12,9 +12,11 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
+	"github.com/haua/futu/app/platform"
 )
 
 const lastImagePathKey = "player.last_image_path"
+const lastCanvasWidthKey = "player.last_canvas_width"
 
 const (
 	defaultImageSize = 200
@@ -38,7 +40,13 @@ func NewPlayer(a fyne.App, w fyne.Window) *Player {
 	img.Resize(fyne.NewSize(defaultImageSize, defaultImageSize))
 	img.FillMode = canvas.ImageFillContain
 
-	return &Player{
+	savedWidth := float32(a.Preferences().Float(lastCanvasWidthKey))
+	initialZoom := float32(1.0)
+	if savedWidth > 0 {
+		initialZoom = clampFloat32(savedWidth/defaultImageSize, minZoom, maxZoom)
+	}
+
+	p := &Player{
 		app:    a,
 		Canvas: img,
 		window: w,
@@ -46,8 +54,10 @@ func NewPlayer(a fyne.App, w fyne.Window) *Player {
 			defaultImageSize,
 			defaultImageSize,
 		),
-		zoom: 1.0,
+		zoom: initialZoom,
 	}
+	p.applyScaledSize()
+	return p
 }
 
 func (p *Player) Play(path string) {
@@ -137,7 +147,7 @@ func (p *Player) adjustScaleAt(delta float32, anchor fyne.Position) {
 	newAnchorPX := toScreenPixels(anchor.X*zoomRatio, scale)
 	newAnchorPY := toScreenPixels(anchor.Y*zoomRatio, scale)
 
-	winPos, canMove := getWindowPosition(p.window)
+	winPos, canMove := platform.GetWindowPosition(p.window)
 	nextWinPos := fyne.NewPos(
 		winPos.X+float32(oldAnchorPX-newAnchorPX),
 		winPos.Y+float32(oldAnchorPY-newAnchorPY),
@@ -145,8 +155,9 @@ func (p *Player) adjustScaleAt(delta float32, anchor fyne.Position) {
 
 	p.zoom = target
 	p.applyScaledSize()
+	p.app.Preferences().SetFloat(lastCanvasWidthKey, float64(p.Canvas.Size().Width))
 	if canMove {
-		moveWindowTo(p.window, nextWinPos.X, nextWinPos.Y)
+		platform.MoveWindowTo(p.window, nextWinPos.X, nextWinPos.Y)
 	}
 }
 
@@ -156,9 +167,12 @@ func (p *Player) updateBaseSize(width, height int) {
 	}
 
 	oldSize := p.Canvas.Size()
-	oldPos, canMove := getWindowPosition(p.window)
+	oldPos, canMove := platform.GetWindowPosition(p.window)
 
-	targetWidth := p.Canvas.Size().Width
+	targetWidth := float32(p.app.Preferences().Float(lastCanvasWidthKey))
+	if targetWidth <= 0 {
+		targetWidth = oldSize.Width
+	}
 	if targetWidth <= 0 {
 		targetWidth = p.baseSize.Width
 	}
@@ -166,15 +180,16 @@ func (p *Player) updateBaseSize(width, height int) {
 	p.baseSize = fyne.NewSize(float32(width), float32(height))
 	if p.baseSize.Width > 0 && targetWidth > 0 {
 		p.zoom = targetWidth / p.baseSize.Width
-	} else {
-		p.zoom = 1.0
 	}
+	p.zoom = clampFloat32(p.zoom, minZoom, maxZoom)
+
 	newSize := p.scaledSizeForZoom(p.zoom)
 	p.applyScaledSize()
+	p.app.Preferences().SetFloat(lastCanvasWidthKey, float64(newSize.Width))
 	if canMove {
 		nextX := oldPos.X + (oldSize.Width-newSize.Width)/2
 		nextY := oldPos.Y + (oldSize.Height-newSize.Height)/2
-		moveWindowTo(p.window, nextX, nextY)
+		platform.MoveWindowTo(p.window, nextX, nextY)
 	}
 }
 
