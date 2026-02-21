@@ -21,7 +21,7 @@ const lastCanvasWidthKey = "player.last_canvas_width"
 const (
 	defaultImageSize = 200
 	minZoom          = 0.2
-	maxZoom          = 5.0
+	maxZoom          = 2.0
 	zoomStep         = 0.1
 )
 
