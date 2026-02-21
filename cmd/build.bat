@@ -2,28 +2,29 @@
 setlocal
 
 REM =========================
-REM Build for Windows 64-bit
-set APP_NAME=Futu
-set OUT=%APP_NAME%.exe
+REM Package for Windows (reads metadata from FyneApp.toml)
+cd /d "%~dp0.."
+if errorlevel 1 (
+    echo.
+    echo Failed to switch to project root
+    exit /b 1
+)
 
-set GOOS=windows
-set GOARCH=amd64
-set CGO_ENABLED=1
+echo Packaging app with fyne ...
 
-echo Building %APP_NAME% ...
+fyne package -os windows -release
 
-go build -v -x ^
-  -ldflags "-s -w -H=windowsgui" ^
-  -o "%OUT%"
-
+@REM go build -v -x ^
+@REM   -ldflags "-s -w -H=windowsgui" ^
+@REM   -o "%OUT%"
 IF ERRORLEVEL 1 (
     echo.
-    echo Build failed
+    echo Package failed
     exit /b 1
 )
 
 echo.
-echo Build success: %OUT%
+echo Package success
 echo.
 
 endlocal

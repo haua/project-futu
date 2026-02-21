@@ -1,8 +1,8 @@
-Website = "https://example.com"
+Website = "https://github.com/haua"
 
 [Details]
 Icon = "assets/icon.png"
-Name = "Futu"
-ID = "com.example.app"
+Name = "浮图"
+ID = "cn.haua.futu.desktop"
 Version = "1.0.0"
-Build = 1
+Build = 3

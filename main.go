@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	a := fyneapp.NewWithID("com.futu.desktop")
+	a := fyneapp.NewWithID("cn.haua.futu.desktop")
 
 	win := futuapp.NewFloatingWindow(a)
 	a.Lifecycle().SetOnStarted(func() {

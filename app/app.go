@@ -43,6 +43,12 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 		w = a.NewWindow("Futu")
 	}
 
+	title := a.Metadata().Name
+	if title == "" {
+		title = "Futu"
+	}
+	w.SetTitle(title)
+
 	w.SetFixedSize(true)
 	w.Resize(fyne.NewSize(200, 200))
 	w.SetPadded(false) // 去掉内容内边距
