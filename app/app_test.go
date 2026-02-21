@@ -82,6 +82,111 @@ func TestToggleAlwaysOnTop_NoControllerKeepsState(t *testing.T) {
 	}
 }
 
+func TestSetAlwaysOnTop_PersistsPreferenceOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+
+	fw := &FloatingWindow{
+		App:        a,
+		topMostSet: func(bool) bool { return true },
+	}
+
+	if ok := fw.SetAlwaysOnTop(true); !ok {
+		t.Fatalf("SetAlwaysOnTop(true) should succeed")
+	}
+	if !fw.IsAlwaysOnTop() {
+		t.Fatalf("always-on-top should be true")
+	}
+	if !a.Preferences().Bool(alwaysOnTopKey) {
+		t.Fatalf("alwaysOnTopKey should be true after success")
+	}
+
+	if ok := fw.SetAlwaysOnTop(false); !ok {
+		t.Fatalf("SetAlwaysOnTop(false) should succeed")
+	}
+	if fw.IsAlwaysOnTop() {
+		t.Fatalf("always-on-top should be false")
+	}
+	if a.Preferences().Bool(alwaysOnTopKey) {
+		t.Fatalf("alwaysOnTopKey should be false after success")
+	}
+}
+
+func TestSetAlwaysOnTop_FailureDoesNotOverwritePreference(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+	a.Preferences().SetBool(alwaysOnTopKey, true)
+
+	fw := &FloatingWindow{
+		App:        a,
+		topMostSet: func(bool) bool { return false },
+	}
+
+	if ok := fw.SetAlwaysOnTop(false); ok {
+		t.Fatalf("SetAlwaysOnTop should fail")
+	}
+	if !a.Preferences().Bool(alwaysOnTopKey) {
+		t.Fatalf("failed set should not overwrite saved preference")
+	}
+}
+
+func TestRestoreAlwaysOnTop_FromPreference(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+	a.Preferences().SetBool(alwaysOnTopKey, true)
+
+	calls := 0
+	fw := &FloatingWindow{
+		App: a,
+		topMostSet: func(enabled bool) bool {
+			calls++
+			return enabled
+		},
+	}
+
+	fw.restoreAlwaysOnTop()
+
+	if calls != 1 {
+		t.Fatalf("restore should try to apply once, calls=%d", calls)
+	}
+	if !fw.IsAlwaysOnTop() {
+		t.Fatalf("always-on-top should be restored to true")
+	}
+}
+
+func TestRestoreAlwaysOnTop_DisabledPreferenceSkipsApply(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+	a.Preferences().SetBool(alwaysOnTopKey, false)
+
+	called := false
+	fw := &FloatingWindow{
+		App: a,
+		topMostSet: func(bool) bool {
+			called = true
+			return true
+		},
+	}
+	fw.alwaysOnTop.Store(true)
+
+	fw.restoreAlwaysOnTop()
+
+	if called {
+		t.Fatalf("restore should not apply when preference is false")
+	}
+	if fw.IsAlwaysOnTop() {
+		t.Fatalf("always-on-top should be false")
+	}
+}
+
 func TestRestoreWindowPlacement_NoSavedPos_CentersAndPersists(t *testing.T) {
 	a := fynetest.NewApp()
 	defer a.Quit()

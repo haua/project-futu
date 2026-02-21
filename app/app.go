@@ -22,6 +22,7 @@ const (
 	windowPosXKey   = "window.pos_x"
 	windowPosYKey   = "window.pos_y"
 	windowPosSetKey = "window.pos_set"
+	alwaysOnTopKey  = "window.always_on_top"
 )
 
 type FloatingWindow struct {
@@ -32,6 +33,7 @@ type FloatingWindow struct {
 	editMode    atomic.Bool
 	alwaysOnTop atomic.Bool
 	topMostCtl  *utils.WindowTopMost
+	topMostSet  func(enabled bool) bool
 }
 
 func NewFloatingWindow(a fyne.App) *FloatingWindow {
@@ -62,6 +64,7 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 		Player:     player_instance,
 		topMostCtl: utils.NewWindowTopMost(w),
 	}
+	fw.topMostSet = fw.topMostCtl.Set
 	fw.editMode.Store(true)
 
 	w.SetContent(drag.NewWidget(
@@ -81,6 +84,7 @@ func (f *FloatingWindow) Show() {
 	f.Player.PlayLast()
 	f.Window.Show()
 	f.restoreWindowPlacement()
+	f.restoreAlwaysOnTop()
 }
 
 func (f *FloatingWindow) IsEditMode() bool {
@@ -102,10 +106,11 @@ func (f *FloatingWindow) IsAlwaysOnTop() bool {
 }
 
 func (f *FloatingWindow) SetAlwaysOnTop(enabled bool) bool {
-	if f.topMostCtl == nil || !f.topMostCtl.Set(enabled) {
+	if !f.applyAlwaysOnTop(enabled) {
 		return false
 	}
 	f.alwaysOnTop.Store(enabled)
+	f.saveAlwaysOnTopPreference(enabled)
 	return true
 }
 
@@ -115,6 +120,37 @@ func (f *FloatingWindow) ToggleAlwaysOnTop() bool {
 		return next
 	}
 	return f.IsAlwaysOnTop()
+}
+
+func (f *FloatingWindow) applyAlwaysOnTop(enabled bool) bool {
+	if f.topMostSet != nil {
+		return f.topMostSet(enabled)
+	}
+	if f.topMostCtl == nil {
+		return false
+	}
+	return f.topMostCtl.Set(enabled)
+}
+
+func (f *FloatingWindow) saveAlwaysOnTopPreference(enabled bool) {
+	if f.App == nil {
+		return
+	}
+	f.App.Preferences().SetBool(alwaysOnTopKey, enabled)
+}
+
+func (f *FloatingWindow) restoreAlwaysOnTop() {
+	if f.App == nil {
+		return
+	}
+	if !f.App.Preferences().Bool(alwaysOnTopKey) {
+		f.alwaysOnTop.Store(false)
+		return
+	}
+	if f.SetAlwaysOnTop(true) {
+		return
+	}
+	f.alwaysOnTop.Store(false)
 }
 
 func (f *FloatingWindow) SaveWindowPosition(pos fyne.Position) {
