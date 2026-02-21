@@ -1,10 +1,12 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/test"
 )
 
 func TestTopMostMenuLabel(t *testing.T) {
@@ -111,4 +113,31 @@ func TestSetTrayIconByState(t *testing.T) {
 			t.Fatalf("setIcon should not be called when resource is nil")
 		}
 	})
+}
+
+func TestAppVersionText(t *testing.T) {
+	t.Parallel()
+
+	if got := appVersionText(nil); got != "版本：unknown" {
+		t.Fatalf("appVersionText(nil) = %q", got)
+	}
+
+	a := test.NewApp()
+	t.Cleanup(a.Quit)
+
+	if got := appVersionText(a); got == "" {
+		t.Fatalf("appVersionText(a) should not be empty")
+	}
+}
+
+func TestOperationGuideText(t *testing.T) {
+	t.Parallel()
+
+	guide := operationGuideText()
+	if guide == "" {
+		t.Fatalf("operation guide should not be empty")
+	}
+	if !strings.HasPrefix(guide, "操作指南") {
+		t.Fatalf("operation guide should start with 操作指南, got %q", guide)
+	}
 }

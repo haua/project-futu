@@ -81,6 +81,9 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 			win.Player.Play(filename)
 		}),
 		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("设置", func() {
+			openSettingsWindow(a)
+		}),
 		fyne.NewMenuItem("退出", func() {
 			a.Quit()
 		}),

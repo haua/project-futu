@@ -1,7 +1,6 @@
 package app
 
 import (
-	"log"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -215,7 +214,6 @@ func (f *FloatingWindow) startMouseFadeLoop() {
 		for {
 			select {
 			case <-ticker.C:
-				log.Printf("hhh-ttt")
 				f.updateWindowOpacityByCursor()
 			case <-stop:
 				return
