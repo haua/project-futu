@@ -361,6 +361,105 @@ func TestRestoreAlwaysOnTop_DisabledPreferenceSkipsApply(t *testing.T) {
 	}
 }
 
+func TestSetLaunchAtStartup_NoController(t *testing.T) {
+	t.Parallel()
+
+	fw := &FloatingWindow{}
+	if fw.IsLaunchAtStartup() {
+		t.Fatalf("zero value launch-at-startup should be false")
+	}
+
+	if ok := fw.SetLaunchAtStartup(true); ok {
+		t.Fatalf("SetLaunchAtStartup should fail when startupCtl is nil")
+	}
+	if fw.IsLaunchAtStartup() {
+		t.Fatalf("state should remain unchanged when SetLaunchAtStartup fails")
+	}
+}
+
+func TestSetLaunchAtStartup_SuccessUpdatesState(t *testing.T) {
+	t.Parallel()
+
+	var calls []bool
+	fw := &FloatingWindow{
+		startupSet: func(enabled bool) bool {
+			calls = append(calls, enabled)
+			return true
+		},
+	}
+
+	if ok := fw.SetLaunchAtStartup(true); !ok {
+		t.Fatalf("SetLaunchAtStartup(true) should succeed")
+	}
+	if !fw.IsLaunchAtStartup() {
+		t.Fatalf("launch-at-startup should be true")
+	}
+	if len(calls) != 1 || !calls[0] {
+		t.Fatalf("startupSet calls = %v, want [true]", calls)
+	}
+
+	if ok := fw.SetLaunchAtStartup(false); !ok {
+		t.Fatalf("SetLaunchAtStartup(false) should succeed")
+	}
+	if fw.IsLaunchAtStartup() {
+		t.Fatalf("launch-at-startup should be false")
+	}
+	if len(calls) != 2 || calls[1] {
+		t.Fatalf("startupSet second call should be false, calls=%v", calls)
+	}
+}
+
+func TestSetLaunchAtStartup_FailureKeepsState(t *testing.T) {
+	t.Parallel()
+
+	fw := &FloatingWindow{
+		startupSet: func(bool) bool { return false },
+	}
+	fw.launchAtStartup.Store(true)
+
+	if ok := fw.SetLaunchAtStartup(false); ok {
+		t.Fatalf("SetLaunchAtStartup should fail")
+	}
+	if !fw.IsLaunchAtStartup() {
+		t.Fatalf("state should remain true on failure")
+	}
+}
+
+func TestRefreshLaunchAtStartup(t *testing.T) {
+	t.Parallel()
+
+	fw := &FloatingWindow{
+		startupGet: func() (bool, bool) {
+			return true, true
+		},
+	}
+
+	if ok := fw.RefreshLaunchAtStartup(); !ok {
+		t.Fatalf("RefreshLaunchAtStartup should succeed")
+	}
+	if !fw.IsLaunchAtStartup() {
+		t.Fatalf("launch-at-startup should be true")
+	}
+}
+
+func TestRefreshLaunchAtStartup_FailureKeepsState(t *testing.T) {
+	t.Parallel()
+
+	fw := &FloatingWindow{
+		startupGet: func() (bool, bool) {
+			return false, false
+		},
+	}
+	fw.launchAtStartup.Store(true)
+
+	if ok := fw.RefreshLaunchAtStartup(); ok {
+		t.Fatalf("RefreshLaunchAtStartup should fail")
+	}
+	if !fw.IsLaunchAtStartup() {
+		t.Fatalf("state should remain unchanged on refresh failure")
+	}
+}
+
 func TestRestoreWindowPlacement_NoSavedPos_CentersAndPersists(t *testing.T) {
 	a := fynetest.NewApp()
 	defer a.Quit()

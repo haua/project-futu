@@ -116,7 +116,7 @@ func newMouseFarOpacitySetting(win *FloatingWindow) fyne.CanvasObject {
 	slider.Step = 1
 
 	updateLabel := func(v float64) {
-		label.SetText(fmt.Sprintf("常态模式下最高不透明度: %d%%", int(v+0.5)))
+		label.SetText(fmt.Sprintf("常态模式下最高不透明度：%d%%", int(v+0.5)))
 	}
 
 	current := utils.ClampFloat64(win.MouseFarOpacity()*100, 1, 100)
@@ -128,6 +128,42 @@ func newMouseFarOpacitySetting(win *FloatingWindow) fyne.CanvasObject {
 	}
 
 	return container.NewVBox(label, slider)
+}
+
+func newLaunchAtStartupSetting(win *FloatingWindow) fyne.CanvasObject {
+	if win == nil {
+		return widget.NewLabel("无法加载开机自启设置")
+	}
+
+	status := widget.NewLabel("")
+	status.Hide()
+	check := widget.NewCheck("开机自启", nil)
+
+	resetting := false
+	check.OnChanged = func(enabled bool) {
+		if resetting {
+			return
+		}
+		if win.SetLaunchAtStartup(enabled) {
+			status.SetText("")
+			status.Hide()
+			return
+		}
+
+		resetting = true
+		check.SetChecked(!enabled)
+		resetting = false
+		status.SetText("设置失败：请检查系统权限")
+		status.Show()
+	}
+
+	if !win.RefreshLaunchAtStartup() {
+		status.SetText("提示：无法读取当前开机自启状态")
+		status.Show()
+	}
+	check.SetChecked(win.IsLaunchAtStartup())
+
+	return container.NewVBox(check, status)
 }
 
 func openSettingsWindow(a fyne.App, win *FloatingWindow) {
@@ -144,6 +180,7 @@ func openSettingsWindow(a fyne.App, win *FloatingWindow) {
 		newSelectableText(operationGuideText(), true, baseTheme),
 		widget.NewSeparator(),
 		newSelectableText(settingsAppendNoticeText(), false, baseTheme),
+		newLaunchAtStartupSetting(win),
 		newMouseFarOpacitySetting(win),
 	)
 

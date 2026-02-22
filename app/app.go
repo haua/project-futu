@@ -34,6 +34,7 @@ const (
 	windowPosSetKey    = "window.pos_set"
 	alwaysOnTopKey     = "window.always_on_top"
 	mouseFarOpacityKey = "window.mouse_far_opacity"
+	startupValueName   = "Futu"
 	mouseFadeRange     = float32(200)
 	mouseFadeTick      = 50 * time.Millisecond
 	modeHintDuration   = 1200 * time.Millisecond
@@ -62,6 +63,10 @@ type FloatingWindow struct {
 	lastOpacity     uint8
 	hasOpacity      bool
 	mouseFarOpacity uint8
+	launchAtStartup atomic.Bool
+	startupCtl      *utils.LaunchAtStartup
+	startupSet      func(enabled bool) bool
+	startupGet      func() (bool, bool)
 	modeHintLabel   *widget.Label
 	modeHintBox     fyne.CanvasObject
 	modeHintMu      sync.Mutex
@@ -121,11 +126,26 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 		taskbarCtl: utils.NewWindowTaskbar(w),
 		mouseCtl:   utils.NewWindowMousePassthrough(w),
 		opacityCtl: utils.NewWindowOpacity(w),
+		startupCtl: utils.NewLaunchAtStartup(startupValueName),
 	}
 	fw.topMostSet = fw.topMostCtl.Set
 	fw.taskbarSet = fw.taskbarCtl.SetVisible
 	fw.mouseSet = fw.mouseCtl.SetEnabled
 	fw.opacitySet = fw.opacityCtl.Set
+	fw.startupSet = func(enabled bool) bool {
+		if fw.startupCtl == nil {
+			return false
+		}
+		return fw.startupCtl.SetEnabled(enabled) == nil
+	}
+	fw.startupGet = func() (bool, bool) {
+		if fw.startupCtl == nil {
+			return false, false
+		}
+		enabled, err := fw.startupCtl.IsEnabled()
+		return enabled, err == nil
+	}
+	fw.RefreshLaunchAtStartup()
 	fw.editMode.Store(true)
 	fw.mouseFarOpacity = opacityToAlpha(1)
 
@@ -218,6 +238,48 @@ func (f *FloatingWindow) ToggleAlwaysOnTop() bool {
 		return next
 	}
 	return f.IsAlwaysOnTop()
+}
+
+func (f *FloatingWindow) IsLaunchAtStartup() bool {
+	return f.launchAtStartup.Load()
+}
+
+func (f *FloatingWindow) SetLaunchAtStartup(enabled bool) bool {
+	if !f.applyLaunchAtStartup(enabled) {
+		return false
+	}
+	f.launchAtStartup.Store(enabled)
+	return true
+}
+
+func (f *FloatingWindow) RefreshLaunchAtStartup() bool {
+	enabled, ok := f.queryLaunchAtStartup()
+	if !ok {
+		return false
+	}
+	f.launchAtStartup.Store(enabled)
+	return true
+}
+
+func (f *FloatingWindow) applyLaunchAtStartup(enabled bool) bool {
+	if f.startupSet != nil {
+		return f.startupSet(enabled)
+	}
+	if f.startupCtl == nil {
+		return false
+	}
+	return f.startupCtl.SetEnabled(enabled) == nil
+}
+
+func (f *FloatingWindow) queryLaunchAtStartup() (bool, bool) {
+	if f.startupGet != nil {
+		return f.startupGet()
+	}
+	if f.startupCtl == nil {
+		return false, false
+	}
+	enabled, err := f.startupCtl.IsEnabled()
+	return enabled, err == nil
 }
 
 func (f *FloatingWindow) applyAlwaysOnTop(enabled bool) bool {
