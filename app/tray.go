@@ -1,7 +1,5 @@
 package app
 
-// 系统托盘
-
 import (
 	"strings"
 	"sync"
@@ -21,16 +19,20 @@ var (
 
 func topMostMenuLabel(enabled bool) string {
 	if enabled {
-		return "置顶：开"
+		return "\u7f6e\u9876\uff1a\u5f00"
 	}
-	return "置顶：关"
+	return "\u7f6e\u9876\uff1a\u5173"
 }
 
 func windowVisibilityMenuLabel(visible bool) string {
 	if visible {
-		return "窗口：显示"
+		return "\u7a97\u53e3\uff1a\u663e\u793a"
 	}
-	return "窗口：隐藏"
+	return "\u7a97\u53e3\uff1a\u9690\u85cf"
+}
+
+func modeMenuLabel(isEdit bool) string {
+	return modeHintText(isEdit)
 }
 
 func imageFileFilters() (string, []string) {
@@ -67,7 +69,21 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 
 	var menu *fyne.Menu
 	var topMostItem *fyne.MenuItem
+	var modeItem *fyne.MenuItem
 	var windowVisibilityItem *fyne.MenuItem
+
+	refreshTrayState := func(isEdit bool) {
+		modeItem.Label = modeMenuLabel(isEdit)
+		windowVisibilityItem.Label = windowVisibilityMenuLabel(win.IsWindowVisible())
+		desk.SetSystemTrayMenu(menu)
+		SetTrayIcon(desk, isEdit)
+	}
+
+	toggleMode := func() {
+		next := win.ToggleEditMode()
+		refreshTrayState(next)
+	}
+
 	topMostItem = fyne.NewMenuItem(topMostMenuLabel(win.IsAlwaysOnTop()), func() {
 		next := !win.IsAlwaysOnTop()
 		if !win.SetAlwaysOnTop(next) {
@@ -76,6 +92,9 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 		topMostItem.Label = topMostMenuLabel(next)
 		desk.SetSystemTrayMenu(menu)
 	})
+	modeItem = fyne.NewMenuItem(modeMenuLabel(win.IsEditMode()), func() {
+		toggleMode()
+	})
 	windowVisibilityItem = fyne.NewMenuItem(windowVisibilityMenuLabel(win.IsWindowVisible()), func() {
 		visible := win.ToggleWindowVisibility()
 		windowVisibilityItem.Label = windowVisibilityMenuLabel(visible)
@@ -83,10 +102,11 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 	})
 
 	menu = fyne.NewMenu("Futu",
+		modeItem,
 		topMostItem,
 		windowVisibilityItem,
-		fyne.NewMenuItem("更换图片", func() {
-			// fyne 的文件选择器不是系统原生，这里用 sqweek 的系统文件选择器。
+		fyne.NewMenuItem("\u66f4\u6362\u56fe\u7247", func() {
+			// Use native file picker for better UX than Fyne file dialog.
 			filterName, allow := imageFileFilters()
 			filename, err := sqweek.File().Filter(filterName, allow...).Load()
 			if err != nil {
@@ -95,10 +115,10 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 			win.Player.Play(filename)
 		}),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("设置", func() {
+		fyne.NewMenuItem("\u8bbe\u7f6e", func() {
 			openSettingsWindow(a, win)
 		}),
-		fyne.NewMenuItem("退出", func() {
+		fyne.NewMenuItem("\u9000\u51fa", func() {
 			a.Quit()
 		}),
 	)
@@ -125,15 +145,11 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 		tapMu.Unlock()
 
 		if isDoubleTap {
-			win.ToggleEditMode()
-			windowVisibilityItem.Label = windowVisibilityMenuLabel(win.IsWindowVisible())
-			desk.SetSystemTrayMenu(menu)
-			SetTrayIcon(desk, win.IsEditMode())
+			toggleMode()
 		}
 	})
 }
 
-// 设置托盘图标
 func SetTrayIcon(desk desktop.App, isEdit bool) {
 	setTrayIconByState(desk.SetSystemTrayIcon, isEdit)
 }

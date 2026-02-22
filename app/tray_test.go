@@ -31,6 +31,17 @@ func TestWindowVisibilityMenuLabel(t *testing.T) {
 	}
 }
 
+func TestModeMenuLabel(t *testing.T) {
+	t.Parallel()
+
+	if got := modeMenuLabel(true); got != "\u7f16\u8f91\u6a21\u5f0f" {
+		t.Fatalf("modeMenuLabel(true) = %q", got)
+	}
+	if got := modeMenuLabel(false); got != "\u5e38\u6001\u6a21\u5f0f" {
+		t.Fatalf("modeMenuLabel(false) = %q", got)
+	}
+}
+
 func TestImageFileFilters(t *testing.T) {
 	t.Parallel()
 
