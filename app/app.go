@@ -191,7 +191,7 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 			),
 		),
 	)
-	w.SetContent(container.NewMax(mainContent, hintOverlay))
+	w.SetContent(container.NewStack(mainContent, hintOverlay))
 
 	return fw
 }
@@ -604,7 +604,7 @@ func (f *FloatingWindow) initModeHint() {
 	textObj := container.NewThemeOverride(text, modeHintTheme{base: baseTheme})
 
 	bg := canvas.NewRectangle(color.NRGBA{R: 0, G: 0, B: 0, A: 170})
-	bubble := container.NewMax(
+	bubble := container.NewStack(
 		bg,
 		container.NewPadded(
 			container.NewCenter(textObj),
