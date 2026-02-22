@@ -15,6 +15,9 @@ func main() {
 	a.Lifecycle().SetOnStarted(func() {
 		futuapp.SetupTray(a, win)
 	})
+	a.Lifecycle().SetOnStopped(func() {
+		win.Shutdown()
+	})
 
 	win.Show()
 	a.Run()

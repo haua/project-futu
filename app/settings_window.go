@@ -7,6 +7,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	desktopdrv "fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 	"github.com/haua/futu/app/utils"
 )
@@ -55,9 +56,7 @@ func newReadonlyText(text string) fyne.CanvasObject {
 }
 
 func newSoftwareInfoSection(a fyne.App) fyne.CanvasObject {
-	items := []fyne.CanvasObject{
-		newReadonlyText(softwareInfoText(a)),
-	}
+	items := []fyne.CanvasObject{newReadonlyText(softwareInfoText(a))}
 
 	parsedURL, err := url.Parse(projectURL)
 	if err != nil {
@@ -109,8 +108,8 @@ func newLaunchAtStartupSetting(win *FloatingWindow) fyne.CanvasObject {
 			return
 		}
 		if win.SetLaunchAtStartup(enabled) {
-			status.SetText("")
 			status.Hide()
+			status.SetText("")
 			return
 		}
 
@@ -130,6 +129,161 @@ func newLaunchAtStartupSetting(win *FloatingWindow) fyne.CanvasObject {
 	return container.NewVBox(check, status)
 }
 
+type focusAwareButton struct {
+	widget.Button
+	onFocusLost func()
+}
+
+func newFocusAwareButton(label string, tapped func(), onFocusLost func()) *focusAwareButton {
+	b := &focusAwareButton{onFocusLost: onFocusLost}
+	b.Text = label
+	b.OnTapped = tapped
+	b.ExtendBaseWidget(b)
+	return b
+}
+
+func (b *focusAwareButton) FocusLost() {
+	b.Button.FocusLost()
+	if b.onFocusLost != nil {
+		b.onFocusLost()
+	}
+}
+
+func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fyne.CanvasObject {
+	if win == nil {
+		return widget.NewLabel("无法加载快捷键设置")
+	}
+	if !win.IsGlobalHotkeySupported() {
+		return widget.NewLabel("当前平台不支持全局快捷键")
+	}
+
+	recording := false
+	originHotkey := win.ModeToggleHotkey()
+	var oldOnTypedKey func(*fyne.KeyEvent)
+	var registeredShortcuts []*desktopdrv.CustomShortcut
+
+	var recordBtn *focusAwareButton
+
+	clearHooks := func() {
+		if settingsWin == nil || settingsWin.Canvas() == nil {
+			return
+		}
+		canvas := settingsWin.Canvas()
+		canvas.SetOnTypedKey(oldOnTypedKey)
+		for _, s := range registeredShortcuts {
+			canvas.RemoveShortcut(s)
+		}
+		registeredShortcuts = nil
+	}
+
+	cancelRecord := func() {
+		if !recording {
+			return
+		}
+		recording = false
+		win.EndModeToggleHotkeyCapture()
+		recordBtn.SetText(originHotkey)
+		clearHooks()
+	}
+
+	stopRecordWithCurrent := func() {
+		if !recording {
+			return
+		}
+		recording = false
+		win.EndModeToggleHotkeyCapture()
+		recordBtn.SetText(win.ModeToggleHotkey())
+		clearHooks()
+	}
+
+	recordBtn = newFocusAwareButton(win.ModeToggleHotkey(), nil, func() {
+		cancelRecord()
+	})
+
+	recordBtn.OnTapped = func() {
+		if recording {
+			return
+		}
+		if settingsWin == nil || settingsWin.Canvas() == nil {
+			return
+		}
+
+		originHotkey = win.ModeToggleHotkey()
+		recording = true
+		win.BeginModeToggleHotkeyCapture()
+		recordBtn.SetText("录制中...按下组合键")
+
+		canvas := settingsWin.Canvas()
+		oldOnTypedKey = canvas.OnTypedKey()
+		registeredShortcuts = nil
+
+		capture := func(key fyne.KeyName, mod fyne.KeyModifier) {
+			if !recording {
+				return
+			}
+			label, ok := modeToggleHotkeyFromKeyEvent(key, mod)
+			if !ok {
+				return
+			}
+			if label == originHotkey {
+				cancelRecord()
+				return
+			}
+			if !win.SetModeToggleHotkey(label) {
+				cancelRecord()
+				return
+			}
+			stopRecordWithCurrent()
+		}
+
+		mods := []fyne.KeyModifier{
+			fyne.KeyModifierControl,
+			fyne.KeyModifierAlt,
+			fyne.KeyModifierShift,
+			fyne.KeyModifierControl | fyne.KeyModifierAlt,
+			fyne.KeyModifierControl | fyne.KeyModifierShift,
+			fyne.KeyModifierAlt | fyne.KeyModifierShift,
+			fyne.KeyModifierControl | fyne.KeyModifierAlt | fyne.KeyModifierShift,
+		}
+		for _, key := range supportedModeToggleHotkeyKeys() {
+			for _, mod := range mods {
+				sc := &desktopdrv.CustomShortcut{KeyName: key, Modifier: mod}
+				registeredShortcuts = append(registeredShortcuts, sc)
+				k := key
+				m := mod
+				canvas.AddShortcut(sc, func(_ fyne.Shortcut) {
+					capture(k, m)
+				})
+			}
+		}
+
+		canvas.SetOnTypedKey(func(ev *fyne.KeyEvent) {
+			if !recording || ev == nil {
+				if oldOnTypedKey != nil {
+					oldOnTypedKey(ev)
+				}
+				return
+			}
+			if ev.Name == fyne.KeyEscape {
+				cancelRecord()
+			}
+		})
+
+		settingsWin.Canvas().Focus(recordBtn)
+	}
+
+	if settingsWin != nil {
+		settingsWin.SetOnClosed(func() {
+			cancelRecord()
+		})
+	}
+
+	return container.NewVBox(
+		widget.NewLabel("全局快捷键（设置时必须带修饰键Ctrl/Alt/Shift，如遇冲突会设置失败）"),
+		container.NewBorder(nil, nil, widget.NewLabel("切换模式"), nil, recordBtn),
+	)
+}
+
 func openSettingsWindow(a fyne.App, win *FloatingWindow) {
 	if a == nil {
 		return
@@ -145,6 +299,8 @@ func openSettingsWindow(a fyne.App, win *FloatingWindow) {
 		newReadonlyText(settingsAppendNoticeText()),
 		newLaunchAtStartupSetting(win),
 		newMouseFarOpacitySetting(win),
+		widget.NewSeparator(),
+		newModeToggleHotkeySetting(win, settingsWin),
 	)
 
 	scroll := container.NewVScroll(content)

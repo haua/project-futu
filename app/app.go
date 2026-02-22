@@ -45,32 +45,39 @@ type FloatingWindow struct {
 	Window fyne.Window
 	Player *player.Player
 	// 是否处于编辑模式
-	editMode        atomic.Bool
-	alwaysOnTop     atomic.Bool
-	topMostCtl      *utils.WindowTopMost
-	topMostSet      func(enabled bool) bool
-	taskbarCtl      *utils.WindowTaskbar
-	taskbarSet      func(visible bool) bool
-	mouseCtl        *utils.WindowMousePassthrough
-	mouseSet        func(enabled bool) bool
-	opacityCtl      *utils.WindowOpacity
-	opacitySet      func(opacity float64) bool
-	fadeLoopMu      sync.Mutex
-	fadeLoopStop    chan struct{}
-	fadeStateMu     sync.Mutex
-	lastCursor      fyne.Position
-	hasCursor       bool
-	lastOpacity     uint8
-	hasOpacity      bool
-	mouseFarOpacity uint8
-	launchAtStartup atomic.Bool
-	startupCtl      *utils.LaunchAtStartup
-	startupSet      func(enabled bool) bool
-	startupGet      func() (bool, bool)
-	modeHintLabel   *widget.Label
-	modeHintBox     fyne.CanvasObject
-	modeHintMu      sync.Mutex
-	modeHintTimer   *time.Timer
+	editMode         atomic.Bool
+	alwaysOnTop      atomic.Bool
+	topMostCtl       *utils.WindowTopMost
+	topMostSet       func(enabled bool) bool
+	taskbarCtl       *utils.WindowTaskbar
+	taskbarSet       func(visible bool) bool
+	mouseCtl         *utils.WindowMousePassthrough
+	mouseSet         func(enabled bool) bool
+	opacityCtl       *utils.WindowOpacity
+	opacitySet       func(opacity float64) bool
+	fadeLoopMu       sync.Mutex
+	fadeLoopStop     chan struct{}
+	fadeStateMu      sync.Mutex
+	lastCursor       fyne.Position
+	hasCursor        bool
+	lastOpacity      uint8
+	hasOpacity       bool
+	mouseFarOpacity  uint8
+	launchAtStartup  atomic.Bool
+	startupCtl       *utils.LaunchAtStartup
+	startupSet       func(enabled bool) bool
+	startupGet       func() (bool, bool)
+	hotkeyCtl        *utils.GlobalHotkey
+	hotkeySupported  func() bool
+	hotkeyRegister   func(mod uint32, key uint32, onTrigger func()) bool
+	hotkeyUnregister func()
+	hotkeyMu         sync.Mutex
+	modeHotkey       string
+	hotkeyCapturing  atomic.Bool
+	modeHintLabel    *widget.Label
+	modeHintBox      fyne.CanvasObject
+	modeHintMu       sync.Mutex
+	modeHintTimer    *time.Timer
 }
 
 type modeHintTheme struct {
@@ -127,6 +134,7 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 		mouseCtl:   utils.NewWindowMousePassthrough(w),
 		opacityCtl: utils.NewWindowOpacity(w),
 		startupCtl: utils.NewLaunchAtStartup(startupValueName),
+		hotkeyCtl:  utils.NewGlobalHotkey(),
 	}
 	fw.topMostSet = fw.topMostCtl.Set
 	fw.taskbarSet = fw.taskbarCtl.SetVisible
@@ -145,7 +153,11 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 		enabled, err := fw.startupCtl.IsEnabled()
 		return enabled, err == nil
 	}
+	fw.hotkeySupported = fw.hotkeyCtl.Supported
+	fw.hotkeyRegister = fw.hotkeyCtl.Register
+	fw.hotkeyUnregister = fw.hotkeyCtl.Unregister
 	fw.RefreshLaunchAtStartup()
+	fw.restoreModeToggleHotkey()
 	fw.editMode.Store(true)
 	fw.mouseFarOpacity = opacityToAlpha(1)
 
@@ -180,6 +192,7 @@ func (f *FloatingWindow) Show() {
 	f.restoreWindowPlacement()
 	f.restoreAlwaysOnTop()
 	f.restoreMouseFarOpacity()
+	f.applyModeToggleHotkey()
 	if f.IsEditMode() {
 		f.stopMouseFadeLoop()
 		if f.Player != nil {

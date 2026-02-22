@@ -460,6 +460,153 @@ func TestRefreshLaunchAtStartup_FailureKeepsState(t *testing.T) {
 	}
 }
 
+func TestParseModeToggleHotkey(t *testing.T) {
+	t.Parallel()
+
+	parsed, ok := parseModeToggleHotkey(" ctrl + shift + f2 ")
+	if !ok {
+		t.Fatalf("parseModeToggleHotkey should succeed")
+	}
+	if parsed.label != "Ctrl+Shift+F2" {
+		t.Fatalf("parsed label = %q, want Ctrl+Shift+F2", parsed.label)
+	}
+	if parsed.mod != (0x0002 | 0x0004) {
+		t.Fatalf("parsed mod = %#x, want %#x", parsed.mod, 0x0002|0x0004)
+	}
+	if parsed.key != 0x71 {
+		t.Fatalf("parsed key = %#x, want %#x", parsed.key, 0x71)
+	}
+}
+
+func TestParseModeToggleHotkey_Invalid(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{
+		"",
+		"M",
+		"Ctrl+Alt",
+		"Ctrl+Ctrl+M",
+		"Ctrl+Alt+UnknownKey",
+	}
+	for _, c := range cases {
+		if _, ok := parseModeToggleHotkey(c); ok {
+			t.Fatalf("parseModeToggleHotkey(%q) should fail", c)
+		}
+	}
+}
+
+func TestModeToggleHotkeyFromKeyEvent(t *testing.T) {
+	t.Parallel()
+
+	got, ok := modeToggleHotkeyFromKeyEvent(fyne.KeyF2, fyne.KeyModifierControl|fyne.KeyModifierShift)
+	if !ok {
+		t.Fatalf("modeToggleHotkeyFromKeyEvent should succeed")
+	}
+	if got != "Ctrl+Shift+F2" {
+		t.Fatalf("captured hotkey = %q, want Ctrl+Shift+F2", got)
+	}
+}
+
+func TestModeToggleHotkeyFromKeyEvent_Invalid(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := modeToggleHotkeyFromKeyEvent(fyne.KeyM, 0); ok {
+		t.Fatalf("missing modifier should fail")
+	}
+	if _, ok := modeToggleHotkeyFromKeyEvent(fyne.KeyUnknown, fyne.KeyModifierControl); ok {
+		t.Fatalf("unknown key should fail")
+	}
+	if _, ok := modeToggleHotkeyFromKeyEvent(fyne.KeyM, fyne.KeyModifierSuper); ok {
+		t.Fatalf("super modifier should fail")
+	}
+}
+
+func TestSetModeToggleHotkey(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+
+	var gotMod uint32
+	var gotKey uint32
+	calls := 0
+	fw := &FloatingWindow{
+		App: a,
+		hotkeySupported: func() bool {
+			return true
+		},
+		hotkeyRegister: func(mod uint32, key uint32, _ func()) bool {
+			calls++
+			gotMod = mod
+			gotKey = key
+			return true
+		},
+	}
+	fw.restoreModeToggleHotkey()
+
+	if ok := fw.SetModeToggleHotkey("Ctrl+Shift+M"); !ok {
+		t.Fatalf("SetModeToggleHotkey should succeed")
+	}
+	if calls != 1 {
+		t.Fatalf("hotkeyRegister calls = %d, want 1", calls)
+	}
+	if gotMod != (0x0002|0x0004) || gotKey != 0x4D {
+		t.Fatalf("register args = (%#x,%#x), want (%#x,%#x)", gotMod, gotKey, 0x0002|0x0004, 0x4D)
+	}
+	if got := fw.ModeToggleHotkey(); got != "Ctrl+Shift+M" {
+		t.Fatalf("ModeToggleHotkey() = %q, want Ctrl+Shift+M", got)
+	}
+	if got := a.Preferences().String(modeToggleHotkeyKey); got != "Ctrl+Shift+M" {
+		t.Fatalf("saved hotkey = %q, want Ctrl+Shift+M", got)
+	}
+}
+
+func TestSetModeToggleHotkey_RegisterFailureRollsBack(t *testing.T) {
+	t.Parallel()
+
+	fw := &FloatingWindow{
+		hotkeySupported: func() bool {
+			return true
+		},
+		hotkeyRegister: func(mod uint32, key uint32, _ func()) bool {
+			return mod == (0x0002|0x0001) && key == 0x4D
+		},
+	}
+	fw.restoreModeToggleHotkey()
+
+	if ok := fw.SetModeToggleHotkey("Ctrl+Shift+M"); ok {
+		t.Fatalf("SetModeToggleHotkey should fail when register fails")
+	}
+	if got := fw.ModeToggleHotkey(); got != defaultModeToggleHotkey {
+		t.Fatalf("ModeToggleHotkey() after rollback = %q, want %q", got, defaultModeToggleHotkey)
+	}
+}
+
+func TestRestoreModeToggleHotkey_DefaultAndSaved(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+
+	fw := &FloatingWindow{App: a}
+	fw.restoreModeToggleHotkey()
+	if got := fw.ModeToggleHotkey(); got != defaultModeToggleHotkey {
+		t.Fatalf("default ModeToggleHotkey() = %q, want %q", got, defaultModeToggleHotkey)
+	}
+
+	a.Preferences().SetString(modeToggleHotkeyKey, "Alt+Shift+M")
+	fw.restoreModeToggleHotkey()
+	if got := fw.ModeToggleHotkey(); got != "Alt+Shift+M" {
+		t.Fatalf("saved ModeToggleHotkey() = %q, want Alt+Shift+M", got)
+	}
+
+	a.Preferences().SetString(modeToggleHotkeyKey, "invalid")
+	fw.restoreModeToggleHotkey()
+	if got := fw.ModeToggleHotkey(); got != defaultModeToggleHotkey {
+		t.Fatalf("invalid saved value should fallback, got %q", got)
+	}
+}
+
 func TestRestoreWindowPlacement_NoSavedPos_CentersAndPersists(t *testing.T) {
 	a := fynetest.NewApp()
 	defer a.Quit()
