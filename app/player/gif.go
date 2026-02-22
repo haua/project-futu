@@ -12,6 +12,8 @@ import (
 	"fyne.io/fyne/v2"
 )
 
+const minGIFFrameDelay = time.Second / 60
+
 func PlayGIF(p *Player, path string, playbackID uint64) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -47,18 +49,12 @@ func PlayGIF(p *Player, path string, playbackID uint64) {
 				if !p.isPlaybackActive(currentID) {
 					return
 				}
-				for p.RenderPaused() {
-					if !p.isPlaybackActive(currentID) {
-						return
-					}
-					time.Sleep(10 * time.Millisecond)
+				if !p.waitRenderResumed(currentID) {
+					return
 				}
 
 				frame := frames[i]
-				delay := 10 * time.Millisecond
-				if i < len(g.Delay) && g.Delay[i] > 0 {
-					delay = time.Duration(g.Delay[i]) * 10 * time.Millisecond
-				}
+				delay := normalizedGIFFrameDelay(g, i)
 
 				fyne.Do(func() {
 					if !p.isPlaybackActive(currentID) {
@@ -71,6 +67,17 @@ func PlayGIF(p *Player, path string, playbackID uint64) {
 			}
 		}
 	}(playbackID)
+}
+
+func normalizedGIFFrameDelay(g *gif.GIF, frameIndex int) time.Duration {
+	delay := 10 * time.Millisecond
+	if g != nil && frameIndex >= 0 && frameIndex < len(g.Delay) && g.Delay[frameIndex] > 0 {
+		delay = time.Duration(g.Delay[frameIndex]) * 10 * time.Millisecond
+	}
+	if delay < minGIFFrameDelay {
+		return minGIFFrameDelay
+	}
+	return delay
 }
 
 func composeGIFFrames(g *gif.GIF) []image.Image {

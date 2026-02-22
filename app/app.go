@@ -112,6 +112,9 @@ func (f *FloatingWindow) Show() {
 	f.restoreAlwaysOnTop()
 	if f.IsEditMode() {
 		f.stopMouseFadeLoop()
+		if f.Player != nil {
+			f.Player.SetFullyTransparentPaused(false)
+		}
 		f.applyWindowOpacity(1.0)
 		return
 	}
@@ -132,6 +135,9 @@ func (f *FloatingWindow) ToggleEditMode() bool {
 			f.applyMousePassthrough(!next)
 			if next {
 				f.stopMouseFadeLoop()
+				if f.Player != nil {
+					f.Player.SetFullyTransparentPaused(false)
+				}
 				f.applyWindowOpacity(1.0)
 			} else {
 				f.startMouseFadeLoop()
@@ -204,6 +210,10 @@ func (f *FloatingWindow) applyWindowOpacity(opacity float64) bool {
 	f.lastOpacity = alpha
 	f.hasOpacity = true
 	f.fadeStateMu.Unlock()
+	if f.Player != nil {
+		shouldPause := !f.IsEditMode() && alpha == 0
+		f.Player.SetFullyTransparentPaused(shouldPause)
+	}
 
 	if f.opacitySet != nil {
 		return f.opacitySet(opacity)

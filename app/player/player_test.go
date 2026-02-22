@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 	fynetest "fyne.io/fyne/v2/test"
@@ -101,7 +102,7 @@ func TestPlaybackState(t *testing.T) {
 func TestRenderPausedState(t *testing.T) {
 	t.Parallel()
 
-	p := &Player{}
+	p := &Player{pauseSignal: make(chan struct{}, 1)}
 	if p.RenderPaused() {
 		t.Fatalf("zero value should be not paused")
 	}
@@ -112,6 +113,78 @@ func TestRenderPausedState(t *testing.T) {
 	p.SetRenderPaused(false)
 	if p.RenderPaused() {
 		t.Fatalf("expected resumed state")
+	}
+}
+
+func TestWaitRenderResumed_UnblocksOnResume(t *testing.T) {
+	t.Parallel()
+
+	p := &Player{pauseSignal: make(chan struct{}, 1)}
+	id := p.beginPlayback()
+	p.SetRenderPaused(true)
+
+	done := make(chan bool, 1)
+	go func() {
+		done <- p.waitRenderResumed(id)
+	}()
+
+	select {
+	case <-done:
+		t.Fatalf("waitRenderResumed should block while paused")
+	case <-time.After(30 * time.Millisecond):
+	}
+
+	p.SetRenderPaused(false)
+
+	select {
+	case ok := <-done:
+		if !ok {
+			t.Fatalf("waitRenderResumed should return true when resumed and playback active")
+		}
+	case <-time.After(300 * time.Millisecond):
+		t.Fatalf("waitRenderResumed did not unblock after resume")
+	}
+}
+
+func TestWaitRenderResumed_ReturnsFalseWhenPlaybackInactive(t *testing.T) {
+	t.Parallel()
+
+	p := &Player{pauseSignal: make(chan struct{}, 1)}
+	id := p.beginPlayback()
+	p.SetRenderPaused(true)
+
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		p.beginPlayback()
+	}()
+
+	if ok := p.waitRenderResumed(id); ok {
+		t.Fatalf("waitRenderResumed should return false when playback becomes inactive")
+	}
+}
+
+func TestRenderPause_MultipleReasons(t *testing.T) {
+	t.Parallel()
+
+	p := &Player{pauseSignal: make(chan struct{}, 1)}
+	if p.RenderPaused() {
+		t.Fatalf("zero value should be not paused")
+	}
+
+	p.SetRenderPaused(true)
+	if !p.RenderPaused() {
+		t.Fatalf("drag pause should pause rendering")
+	}
+
+	p.SetFullyTransparentPaused(true)
+	p.SetRenderPaused(false)
+	if !p.RenderPaused() {
+		t.Fatalf("transparent pause should keep rendering paused")
+	}
+
+	p.SetFullyTransparentPaused(false)
+	if p.RenderPaused() {
+		t.Fatalf("rendering should resume after all pause reasons are cleared")
 	}
 }
 

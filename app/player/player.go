@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -25,12 +26,18 @@ const (
 	zoomStep         = 0.1
 )
 
+const (
+	pauseReasonDrag uint32 = 1 << iota
+	pauseReasonFullyTransparent
+)
+
 type Player struct {
 	app          fyne.App
 	Canvas       *canvas.Image
 	window       fyne.Window
-	renderPaused atomic.Bool
+	pauseReasons atomic.Uint32
 	playbackID   atomic.Uint64
+	pauseSignal  chan struct{}
 	baseSize     fyne.Size
 	zoom         float32
 }
@@ -54,7 +61,8 @@ func NewPlayer(a fyne.App, w fyne.Window) *Player {
 			defaultImageSize,
 			defaultImageSize,
 		),
-		zoom: initialZoom,
+		zoom:        initialZoom,
+		pauseSignal: make(chan struct{}, 1),
 	}
 	p.applyScaledSize()
 	return p
@@ -97,11 +105,62 @@ func (p *Player) PlayLast() {
 }
 
 func (p *Player) SetRenderPaused(paused bool) {
-	p.renderPaused.Store(paused)
+	p.setPauseReason(pauseReasonDrag, paused)
+}
+
+func (p *Player) SetFullyTransparentPaused(paused bool) {
+	p.setPauseReason(pauseReasonFullyTransparent, paused)
 }
 
 func (p *Player) RenderPaused() bool {
-	return p.renderPaused.Load()
+	return p.pauseReasons.Load() != 0
+}
+
+func (p *Player) waitRenderResumed(playbackID uint64) bool {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for p.RenderPaused() {
+		if !p.isPlaybackActive(playbackID) {
+			return false
+		}
+		select {
+		case <-p.pauseSignal:
+		case <-ticker.C:
+		}
+	}
+	return p.isPlaybackActive(playbackID)
+}
+
+func (p *Player) setPauseReason(reason uint32, paused bool) {
+	for {
+		current := p.pauseReasons.Load()
+		next := current
+		if paused {
+			next |= reason
+		} else {
+			next &^= reason
+		}
+		if current == next {
+			return
+		}
+		if p.pauseReasons.CompareAndSwap(current, next) {
+			if current != 0 && next == 0 {
+				p.notifyRenderResumed()
+			}
+			return
+		}
+	}
+}
+
+func (p *Player) notifyRenderResumed() {
+	if p.pauseSignal == nil {
+		return
+	}
+	select {
+	case p.pauseSignal <- struct{}{}:
+	default:
+	}
 }
 
 // 鼠标滚轮滚动时会调这个函数，

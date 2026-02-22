@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"image/gif"
 	"testing"
+	"time"
 )
 
 func TestComposeGIFFrames_DisposalBackground(t *testing.T) {
@@ -114,6 +115,24 @@ func TestCloneRGBA_DeepCopy(t *testing.T) {
 	src.SetRGBA(0, 0, color.RGBA{0, 0, 255, 255})
 
 	assertRGBA(t, dst.At(0, 0), color.RGBA{255, 0, 0, 255})
+}
+
+func TestNormalizedGIFFrameDelay(t *testing.T) {
+	t.Parallel()
+
+	g := &gif.GIF{Delay: []int{0, 1, 3}}
+	if got := normalizedGIFFrameDelay(g, 0); got != minGIFFrameDelay {
+		t.Fatalf("delay[0] = %v, want %v", got, minGIFFrameDelay)
+	}
+	if got := normalizedGIFFrameDelay(g, 1); got != minGIFFrameDelay {
+		t.Fatalf("delay[1] = %v, want %v", got, minGIFFrameDelay)
+	}
+	if got := normalizedGIFFrameDelay(g, 2); got != 30*time.Millisecond {
+		t.Fatalf("delay[2] = %v, want 30ms", got)
+	}
+	if got := normalizedGIFFrameDelay(g, 99); got != minGIFFrameDelay {
+		t.Fatalf("delay[out-of-range] = %v, want %v", got, minGIFFrameDelay)
+	}
 }
 
 func assertRGBA(t *testing.T, got color.Color, want color.RGBA) {
