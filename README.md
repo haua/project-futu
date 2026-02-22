@@ -107,13 +107,20 @@ go build -ldflags="-s -w -H=windowsgui" -o futu.exe ./main
 
 ```
 futu/
-├── main.go          # 主程序入口
-├── internal/
-│   ├── window/        # Windows API 窗口管理
-│   ├── gif/           # GIF 播放器
-│   └── config/        # 配置管理
-├── assets/            # 默认 GIF 资源
+├── main.go                # 程序入口
+├── app/                   # 核心应用代码
+│   ├── app.go             # 应用初始化与主流程
+│   ├── settings_window.go # 设置窗口
+│   ├── tray.go            # 系统托盘菜单与交互
+│   ├── drag/              # 拖拽与交互组件
+│   ├── player/            # GIF/WebP 播放实现
+│   ├── platform/          # 平台相关能力（如窗口移动）
+│   └── utils/             # 通用工具（窗口、资源、文件等）
+├── cmd/                   # 构建/运行脚本
+├── assets/                # 图标等静态资源
+├── docs/                  # 文档与演示资源
 ├── go.mod
+├── go.sum
 └── README.md
 ```
 
