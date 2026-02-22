@@ -26,6 +26,13 @@ func topMostMenuLabel(enabled bool) string {
 	return "置顶：关"
 }
 
+func windowVisibilityMenuLabel(visible bool) string {
+	if visible {
+		return "窗口：显示"
+	}
+	return "窗口：隐藏"
+}
+
 func imageFileFilters() (string, []string) {
 	allow := []string{"png", "jpeg", "jpg", "gif", "webp"}
 	return strings.Join(allow, ","), allow
@@ -60,6 +67,7 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 
 	var menu *fyne.Menu
 	var topMostItem *fyne.MenuItem
+	var windowVisibilityItem *fyne.MenuItem
 	topMostItem = fyne.NewMenuItem(topMostMenuLabel(win.IsAlwaysOnTop()), func() {
 		next := !win.IsAlwaysOnTop()
 		if !win.SetAlwaysOnTop(next) {
@@ -68,9 +76,15 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 		topMostItem.Label = topMostMenuLabel(next)
 		desk.SetSystemTrayMenu(menu)
 	})
+	windowVisibilityItem = fyne.NewMenuItem(windowVisibilityMenuLabel(win.IsWindowVisible()), func() {
+		visible := win.ToggleWindowVisibility()
+		windowVisibilityItem.Label = windowVisibilityMenuLabel(visible)
+		desk.SetSystemTrayMenu(menu)
+	})
 
 	menu = fyne.NewMenu("Futu",
 		topMostItem,
+		windowVisibilityItem,
 		fyne.NewMenuItem("更换图片", func() {
 			// fyne 的文件选择器不是系统原生，这里用 sqweek 的系统文件选择器。
 			filterName, allow := imageFileFilters()
@@ -112,6 +126,8 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 
 		if isDoubleTap {
 			win.ToggleEditMode()
+			windowVisibilityItem.Label = windowVisibilityMenuLabel(win.IsWindowVisible())
+			desk.SetSystemTrayMenu(menu)
 			SetTrayIcon(desk, win.IsEditMode())
 		}
 	})

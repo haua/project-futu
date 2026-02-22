@@ -11,7 +11,9 @@ import (
 
 const (
 	modeToggleHotkeyKey     = "hotkey.mode_toggle"
-	defaultModeToggleHotkey = "Ctrl+Alt+M"
+	defaultModeToggleHotkey = ""
+	hideWindowHotkeyKey     = "hotkey.hide_window"
+	defaultHideWindowHotkey = ""
 )
 
 type parsedHotkey struct {
@@ -294,6 +296,9 @@ func (f *FloatingWindow) BeginModeToggleHotkeyCapture() {
 	if f.hotkeyUnregister != nil {
 		f.hotkeyUnregister()
 	}
+	if f.hideHotkeyUnregister != nil {
+		f.hideHotkeyUnregister()
+	}
 }
 
 func (f *FloatingWindow) EndModeToggleHotkeyCapture() {
@@ -302,6 +307,7 @@ func (f *FloatingWindow) EndModeToggleHotkeyCapture() {
 	}
 	f.hotkeyCapturing.Store(false)
 	_ = f.applyModeToggleHotkey()
+	_ = f.applyHideWindowHotkey()
 }
 
 func (f *FloatingWindow) ModeToggleHotkey() string {
@@ -317,13 +323,40 @@ func (f *FloatingWindow) ModeToggleHotkey() string {
 	return f.modeHotkey
 }
 
+func (f *FloatingWindow) HideWindowHotkey() string {
+	if f == nil {
+		return defaultHideWindowHotkey
+	}
+
+	f.hotkeyMu.Lock()
+	defer f.hotkeyMu.Unlock()
+	if f.hideWindowHotkey == "" {
+		return defaultHideWindowHotkey
+	}
+	return f.hideWindowHotkey
+}
+
 func (f *FloatingWindow) SetModeToggleHotkey(label string) bool {
 	if f == nil {
 		return false
 	}
+	label = strings.TrimSpace(label)
+	if label == "" {
+		f.hotkeyMu.Lock()
+		f.modeHotkey = ""
+		f.hotkeyMu.Unlock()
+		if !f.applyModeToggleHotkey() {
+			return false
+		}
+		f.saveModeToggleHotkey()
+		return true
+	}
 
 	parsed, ok := parseModeToggleHotkey(label)
 	if !ok {
+		return false
+	}
+	if parsed.label == f.HideWindowHotkey() {
 		return false
 	}
 
@@ -341,6 +374,47 @@ func (f *FloatingWindow) SetModeToggleHotkey(label string) bool {
 	}
 
 	f.saveModeToggleHotkey()
+	return true
+}
+
+func (f *FloatingWindow) SetHideWindowHotkey(label string) bool {
+	if f == nil {
+		return false
+	}
+	label = strings.TrimSpace(label)
+	if label == "" {
+		f.hotkeyMu.Lock()
+		f.hideWindowHotkey = ""
+		f.hotkeyMu.Unlock()
+		if !f.applyHideWindowHotkey() {
+			return false
+		}
+		f.saveHideWindowHotkey()
+		return true
+	}
+
+	parsed, ok := parseModeToggleHotkey(label)
+	if !ok {
+		return false
+	}
+	if parsed.label == f.ModeToggleHotkey() {
+		return false
+	}
+
+	f.hotkeyMu.Lock()
+	old := f.hideWindowHotkey
+	f.hideWindowHotkey = parsed.label
+	f.hotkeyMu.Unlock()
+
+	if !f.applyHideWindowHotkey() {
+		f.hotkeyMu.Lock()
+		f.hideWindowHotkey = old
+		f.hotkeyMu.Unlock()
+		_ = f.applyHideWindowHotkey()
+		return false
+	}
+
+	f.saveHideWindowHotkey()
 	return true
 }
 
@@ -370,6 +444,32 @@ func (f *FloatingWindow) restoreModeToggleHotkey() {
 	f.hotkeyMu.Unlock()
 }
 
+func (f *FloatingWindow) saveHideWindowHotkey() {
+	if f == nil || f.App == nil {
+		return
+	}
+	f.App.Preferences().SetString(hideWindowHotkeyKey, f.HideWindowHotkey())
+}
+
+func (f *FloatingWindow) restoreHideWindowHotkey() {
+	if f == nil {
+		return
+	}
+
+	hotkey := defaultHideWindowHotkey
+	if f.App != nil {
+		if saved := strings.TrimSpace(f.App.Preferences().String(hideWindowHotkeyKey)); saved != "" {
+			if parsed, ok := parseModeToggleHotkey(saved); ok {
+				hotkey = parsed.label
+			}
+		}
+	}
+
+	f.hotkeyMu.Lock()
+	f.hideWindowHotkey = hotkey
+	f.hotkeyMu.Unlock()
+}
+
 func (f *FloatingWindow) applyModeToggleHotkey() bool {
 	if f == nil {
 		return false
@@ -380,12 +480,42 @@ func (f *FloatingWindow) applyModeToggleHotkey() bool {
 	if f.hotkeyRegister == nil {
 		return false
 	}
+	if strings.TrimSpace(f.ModeToggleHotkey()) == "" {
+		if f.hotkeyUnregister != nil {
+			f.hotkeyUnregister()
+		}
+		return true
+	}
 
 	choice, ok := parseModeToggleHotkey(f.ModeToggleHotkey())
 	if !ok {
-		choice, _ = parseModeToggleHotkey(defaultModeToggleHotkey)
+		return false
 	}
 	return f.hotkeyRegister(choice.mod, choice.key, f.onModeToggleHotkeyTriggered)
+}
+
+func (f *FloatingWindow) applyHideWindowHotkey() bool {
+	if f == nil {
+		return false
+	}
+	if f.hideHotkeySupported != nil && !f.hideHotkeySupported() {
+		return true
+	}
+	if f.hideHotkeyRegister == nil {
+		return false
+	}
+	if strings.TrimSpace(f.HideWindowHotkey()) == "" {
+		if f.hideHotkeyUnregister != nil {
+			f.hideHotkeyUnregister()
+		}
+		return true
+	}
+
+	choice, ok := parseModeToggleHotkey(f.HideWindowHotkey())
+	if !ok {
+		return false
+	}
+	return f.hideHotkeyRegister(choice.mod, choice.key, f.onHideWindowHotkeyTriggered)
 }
 
 func (f *FloatingWindow) onModeToggleHotkeyTriggered() {
@@ -405,11 +535,60 @@ func (f *FloatingWindow) onModeToggleHotkeyTriggered() {
 	})
 }
 
+func (f *FloatingWindow) onHideWindowHotkeyTriggered() {
+	if f == nil {
+		return
+	}
+	if f.hotkeyCapturing.Load() {
+		return
+	}
+	fyne.Do(func() {
+		f.ToggleWindowVisibility()
+	})
+}
+
+func (f *FloatingWindow) ToggleWindowVisibility() bool {
+	if f == nil || f.Window == nil {
+		return false
+	}
+
+	if f.windowHidden.Load() {
+		f.Window.Show()
+		f.windowHidden.Store(false)
+		return true
+	}
+
+	f.Window.Hide()
+	f.windowHidden.Store(true)
+	return false
+}
+
+func (f *FloatingWindow) EnsureWindowVisible() {
+	if f == nil || f.Window == nil {
+		return
+	}
+	if !f.windowHidden.Load() {
+		return
+	}
+	f.Window.Show()
+	f.windowHidden.Store(false)
+}
+
+func (f *FloatingWindow) IsWindowVisible() bool {
+	if f == nil || f.Window == nil {
+		return false
+	}
+	return !f.windowHidden.Load()
+}
+
 func (f *FloatingWindow) Shutdown() {
 	if f == nil {
 		return
 	}
 	if f.hotkeyUnregister != nil {
 		f.hotkeyUnregister()
+	}
+	if f.hideHotkeyUnregister != nil {
+		f.hideHotkeyUnregister()
 	}
 }

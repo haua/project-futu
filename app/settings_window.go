@@ -149,7 +149,20 @@ func (b *focusAwareButton) FocusLost() {
 	}
 }
 
-func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fyne.CanvasObject {
+func hotkeyButtonText(label string) string {
+	if strings.TrimSpace(label) == "" {
+		return "未设置"
+	}
+	return label
+}
+
+func newHotkeyRecordRow(
+	win *FloatingWindow,
+	settingsWin fyne.Window,
+	rowLabel string,
+	getCurrent func() string,
+	setHotkey func(string) bool,
+) fyne.CanvasObject {
 	if win == nil {
 		return widget.NewLabel("无法加载快捷键设置")
 	}
@@ -158,7 +171,7 @@ func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fy
 	}
 
 	recording := false
-	originHotkey := win.ModeToggleHotkey()
+	originHotkey := getCurrent()
 	var oldOnTypedKey func(*fyne.KeyEvent)
 	var registeredShortcuts []*desktopdrv.CustomShortcut
 
@@ -182,7 +195,7 @@ func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fy
 		}
 		recording = false
 		win.EndModeToggleHotkeyCapture()
-		recordBtn.SetText(originHotkey)
+		recordBtn.SetText(hotkeyButtonText(originHotkey))
 		clearHooks()
 	}
 
@@ -192,12 +205,22 @@ func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fy
 		}
 		recording = false
 		win.EndModeToggleHotkeyCapture()
-		recordBtn.SetText(win.ModeToggleHotkey())
+		recordBtn.SetText(hotkeyButtonText(getCurrent()))
 		clearHooks()
 	}
 
-	recordBtn = newFocusAwareButton(win.ModeToggleHotkey(), nil, func() {
+	recordBtn = newFocusAwareButton(hotkeyButtonText(getCurrent()), nil, func() {
 		cancelRecord()
+	})
+
+	clearBtn := widget.NewButton("清空", func() {
+		if recording {
+			cancelRecord()
+		}
+		if !setHotkey("") {
+			return
+		}
+		recordBtn.SetText(hotkeyButtonText(getCurrent()))
 	})
 
 	recordBtn.OnTapped = func() {
@@ -208,7 +231,7 @@ func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fy
 			return
 		}
 
-		originHotkey = win.ModeToggleHotkey()
+		originHotkey = getCurrent()
 		recording = true
 		win.BeginModeToggleHotkeyCapture()
 		recordBtn.SetText("录制中...按下组合键")
@@ -229,7 +252,7 @@ func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fy
 				cancelRecord()
 				return
 			}
-			if !win.SetModeToggleHotkey(label) {
+			if !setHotkey(label) {
 				cancelRecord()
 				return
 			}
@@ -278,9 +301,14 @@ func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fy
 		})
 	}
 
+	return container.NewBorder(nil, nil, widget.NewLabel(rowLabel), clearBtn, recordBtn)
+}
+
+func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fyne.CanvasObject {
 	return container.NewVBox(
 		widget.NewLabel("全局快捷键（设置时必须带修饰键Ctrl/Alt/Shift，如遇冲突会设置失败）"),
-		container.NewBorder(nil, nil, widget.NewLabel("切换模式"), nil, recordBtn),
+		newHotkeyRecordRow(win, settingsWin, "切换模式", win.ModeToggleHotkey, win.SetModeToggleHotkey),
+		newHotkeyRecordRow(win, settingsWin, "隐藏窗口", win.HideWindowHotkey, win.SetHideWindowHotkey),
 	)
 }
 

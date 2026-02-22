@@ -12,11 +12,22 @@ import (
 func TestTopMostMenuLabel(t *testing.T) {
 	t.Parallel()
 
-	if got := topMostMenuLabel(true); got != "置顶：开" {
+	if got := topMostMenuLabel(true); got != "\u7f6e\u9876\uff1a\u5f00" {
 		t.Fatalf("topMostMenuLabel(true) = %q", got)
 	}
-	if got := topMostMenuLabel(false); got != "置顶：关" {
+	if got := topMostMenuLabel(false); got != "\u7f6e\u9876\uff1a\u5173" {
 		t.Fatalf("topMostMenuLabel(false) = %q", got)
+	}
+}
+
+func TestWindowVisibilityMenuLabel(t *testing.T) {
+	t.Parallel()
+
+	if got := windowVisibilityMenuLabel(true); got != "\u7a97\u53e3\uff1a\u663e\u793a" {
+		t.Fatalf("windowVisibilityMenuLabel(true) = %q", got)
+	}
+	if got := windowVisibilityMenuLabel(false); got != "\u7a97\u53e3\uff1a\u9690\u85cf" {
+		t.Fatalf("windowVisibilityMenuLabel(false) = %q", got)
 	}
 }
 
@@ -118,7 +129,7 @@ func TestSetTrayIconByState(t *testing.T) {
 func TestAppVersionText(t *testing.T) {
 	t.Parallel()
 
-	if got := appVersionText(nil); got != "版本：unknown" {
+	if got := appVersionText(nil); got != "\u7248\u672c\uff1aunknown" {
 		t.Fatalf("appVersionText(nil) = %q", got)
 	}
 
@@ -137,7 +148,7 @@ func TestOperationGuideText(t *testing.T) {
 	if guide == "" {
 		t.Fatalf("operation guide should not be empty")
 	}
-	if !strings.HasPrefix(guide, "操作指南") {
+	if !strings.HasPrefix(guide, "\u64cd\u4f5c\u6307\u5357") {
 		t.Fatalf("operation guide should start with 操作指南, got %q", guide)
 	}
 }

@@ -582,6 +582,38 @@ func TestSetModeToggleHotkey_RegisterFailureRollsBack(t *testing.T) {
 	}
 }
 
+func TestSetModeToggleHotkey_RejectsConflictWithHideWindow(t *testing.T) {
+	t.Parallel()
+
+	fw := &FloatingWindow{}
+	fw.hotkeyMu.Lock()
+	fw.hideWindowHotkey = "Ctrl+Alt+M"
+	fw.hotkeyMu.Unlock()
+
+	if ok := fw.SetModeToggleHotkey("Ctrl+Alt+M"); ok {
+		t.Fatalf("SetModeToggleHotkey should fail on conflict with hide-window hotkey")
+	}
+	if got := fw.ModeToggleHotkey(); got != defaultModeToggleHotkey {
+		t.Fatalf("ModeToggleHotkey() = %q, want %q", got, defaultModeToggleHotkey)
+	}
+}
+
+func TestSetHideWindowHotkey_RejectsConflictWithModeToggle(t *testing.T) {
+	t.Parallel()
+
+	fw := &FloatingWindow{}
+	fw.hotkeyMu.Lock()
+	fw.modeHotkey = "Ctrl+Alt+M"
+	fw.hotkeyMu.Unlock()
+
+	if ok := fw.SetHideWindowHotkey("Ctrl+Alt+M"); ok {
+		t.Fatalf("SetHideWindowHotkey should fail on conflict with mode-toggle hotkey")
+	}
+	if got := fw.HideWindowHotkey(); got != defaultHideWindowHotkey {
+		t.Fatalf("HideWindowHotkey() = %q, want %q", got, defaultHideWindowHotkey)
+	}
+}
+
 func TestRestoreModeToggleHotkey_DefaultAndSaved(t *testing.T) {
 	t.Parallel()
 
@@ -604,6 +636,41 @@ func TestRestoreModeToggleHotkey_DefaultAndSaved(t *testing.T) {
 	fw.restoreModeToggleHotkey()
 	if got := fw.ModeToggleHotkey(); got != defaultModeToggleHotkey {
 		t.Fatalf("invalid saved value should fallback, got %q", got)
+	}
+}
+
+func TestToggleWindowVisibility(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+	w := a.NewWindow("test")
+	t.Cleanup(w.Close)
+
+	fw := &FloatingWindow{Window: w}
+	if visible := fw.ToggleWindowVisibility(); visible {
+		t.Fatalf("first toggle should hide window")
+	}
+	if visible := fw.ToggleWindowVisibility(); !visible {
+		t.Fatalf("second toggle should show window")
+	}
+}
+
+func TestToggleEditMode_ShowsWindowWhenHidden(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+	w := a.NewWindow("test")
+	t.Cleanup(w.Close)
+
+	fw := &FloatingWindow{Window: w}
+	fw.windowHidden.Store(true)
+	fw.editMode.Store(true)
+
+	fw.ToggleEditMode()
+	if fw.windowHidden.Load() {
+		t.Fatalf("ToggleEditMode should show hidden window")
 	}
 }
 
