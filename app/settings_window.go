@@ -2,12 +2,11 @@ package app
 
 import (
 	"fmt"
-	"image/color"
+	"net/url"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/haua/futu/app/utils"
 )
@@ -17,34 +16,6 @@ const (
 	settingsLicense = "MIT"
 	projectURL      = "https://github.com/haua/project-futu"
 )
-
-type plainSelectableTheme struct {
-	base fyne.Theme
-}
-
-func (t plainSelectableTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	switch name {
-	case theme.ColorNameInputBackground, theme.ColorNameInputBorder:
-		return color.Transparent
-	default:
-		return t.base.Color(name, variant)
-	}
-}
-
-func (t plainSelectableTheme) Font(style fyne.TextStyle) fyne.Resource {
-	return t.base.Font(style)
-}
-
-func (t plainSelectableTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
-	return t.base.Icon(name)
-}
-
-func (t plainSelectableTheme) Size(name fyne.ThemeSizeName) float32 {
-	if name == theme.SizeNameInputBorder {
-		return 0
-	}
-	return t.base.Size(name)
-}
 
 func appVersionText(a fyne.App) string {
 	version := "unknown"
@@ -59,7 +30,6 @@ func softwareInfoText(a fyne.App) string {
 		"软件信息",
 		appVersionText(a),
 		"作者：" + settingsAuthor,
-		"项目地址：" + projectURL,
 		"许可证：" + settingsLicense,
 	}, "\n")
 }
@@ -78,32 +48,26 @@ func settingsAppendNoticeText() string {
 	return "设置："
 }
 
-func newSelectableText(text string, multiline bool, baseTheme fyne.Theme) fyne.CanvasObject {
-	var entry *widget.Entry
-	if multiline {
-		entry = widget.NewMultiLineEntry()
-		entry.Wrapping = fyne.TextWrapWord
-		// Let outer dialog scroll handle overflow by expanding entry height to content rows.
-		entry.SetMinRowsVisible(strings.Count(text, "\n") + 1)
-	} else {
-		entry = widget.NewEntry()
-		entry.Wrapping = fyne.TextWrapOff
+func newReadonlyText(text string) fyne.CanvasObject {
+	label := widget.NewLabel(text)
+	label.Wrapping = fyne.TextWrapWord
+	return label
+}
+
+func newSoftwareInfoSection(a fyne.App) fyne.CanvasObject {
+	items := []fyne.CanvasObject{
+		newReadonlyText(softwareInfoText(a)),
 	}
 
-	entry.SetText(text)
-
-	lockedText := text
-	resetting := false
-	entry.OnChanged = func(current string) {
-		if resetting || current == lockedText {
-			return
-		}
-		resetting = true
-		entry.SetText(lockedText)
-		resetting = false
+	parsedURL, err := url.Parse(projectURL)
+	if err != nil {
+		items = append(items, widget.NewLabel("项目地址："+projectURL))
+		return container.NewVBox(items...)
 	}
 
-	return container.NewThemeOverride(entry, plainSelectableTheme{base: baseTheme})
+	link := widget.NewHyperlink("项目地址："+projectURL, parsedURL)
+	items = append(items, link)
+	return container.NewVBox(items...)
 }
 
 func newMouseFarOpacitySetting(win *FloatingWindow) fyne.CanvasObject {
@@ -172,14 +136,13 @@ func openSettingsWindow(a fyne.App, win *FloatingWindow) {
 	}
 
 	settingsWin := a.NewWindow("设置")
-	baseTheme := a.Settings().Theme()
 
 	content := container.NewVBox(
-		newSelectableText(softwareInfoText(a), true, baseTheme),
+		newSoftwareInfoSection(a),
 		widget.NewSeparator(),
-		newSelectableText(operationGuideText(), true, baseTheme),
+		newReadonlyText(operationGuideText()),
 		widget.NewSeparator(),
-		newSelectableText(settingsAppendNoticeText(), false, baseTheme),
+		newReadonlyText(settingsAppendNoticeText()),
 		newLaunchAtStartupSetting(win),
 		newMouseFarOpacitySetting(win),
 	)
