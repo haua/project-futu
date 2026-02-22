@@ -1,13 +1,19 @@
 package app
 
 import (
+	"image/color"
 	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 	"github.com/haua/futu/app/drag"
 	"github.com/haua/futu/app/platform"
 	"github.com/haua/futu/app/player"
@@ -30,6 +36,7 @@ const (
 	mouseFarOpacityKey = "window.mouse_far_opacity"
 	mouseFadeRange     = float32(200)
 	mouseFadeTick      = 50 * time.Millisecond
+	modeHintDuration   = 1200 * time.Millisecond
 )
 
 type FloatingWindow struct {
@@ -55,6 +62,33 @@ type FloatingWindow struct {
 	lastOpacity     uint8
 	hasOpacity      bool
 	mouseFarOpacity uint8
+	modeHintLabel   *widget.Label
+	modeHintBox     fyne.CanvasObject
+	modeHintMu      sync.Mutex
+	modeHintTimer   *time.Timer
+}
+
+type modeHintTheme struct {
+	base fyne.Theme
+}
+
+func (t modeHintTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	if name == theme.ColorNameForeground {
+		return color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	}
+	return t.base.Color(name, variant)
+}
+
+func (t modeHintTheme) Font(style fyne.TextStyle) fyne.Resource {
+	return t.base.Font(style)
+}
+
+func (t modeHintTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
+	return t.base.Icon(name)
+}
+
+func (t modeHintTheme) Size(name fyne.ThemeSizeName) float32 {
+	return t.base.Size(name)
 }
 
 func NewFloatingWindow(a fyne.App) *FloatingWindow {
@@ -95,14 +129,26 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 	fw.editMode.Store(true)
 	fw.mouseFarOpacity = opacityToAlpha(1)
 
-	w.SetContent(drag.NewWidget(
+	mainContent := drag.NewWidget(
 		w,
 		player_instance.Canvas,
 		player_instance.SetRenderPaused,
 		player_instance.AdjustScaleByScroll,
 		fw.SaveWindowPosition,
 		fw.IsEditMode,
-	))
+	)
+	fw.initModeHint()
+	hintOverlay := container.NewVBox(
+		layout.NewSpacer(),
+		container.NewPadded(
+			container.NewHBox(
+				layout.NewSpacer(),
+				fw.modeHintBox,
+				layout.NewSpacer(),
+			),
+		),
+	)
+	w.SetContent(container.NewMax(mainContent, hintOverlay))
 
 	return fw
 }
@@ -147,6 +193,7 @@ func (f *FloatingWindow) ToggleEditMode() bool {
 				f.startMouseFadeLoop()
 				f.updateWindowOpacityByCursor()
 			}
+			f.showModeHint(next)
 			return next
 		}
 	}
@@ -454,4 +501,77 @@ func (f *FloatingWindow) restoreWindowPlacement() {
 	if centeredPos, ok := getWindowPosition(f.Window); ok {
 		f.SaveWindowPosition(centeredPos)
 	}
+}
+
+func (f *FloatingWindow) initModeHint() {
+	text := widget.NewLabel("")
+	text.Alignment = fyne.TextAlignCenter
+	text.TextStyle = fyne.TextStyle{}
+
+	baseTheme := theme.DefaultTheme()
+	if f != nil && f.App != nil && f.App.Settings() != nil && f.App.Settings().Theme() != nil {
+		baseTheme = f.App.Settings().Theme()
+	}
+	textObj := container.NewThemeOverride(text, modeHintTheme{base: baseTheme})
+
+	bg := canvas.NewRectangle(color.NRGBA{R: 0, G: 0, B: 0, A: 170})
+	bubble := container.NewMax(
+		bg,
+		container.NewPadded(
+			container.NewCenter(textObj),
+		),
+	)
+	box := container.NewPadded(bubble)
+	box.Hide()
+
+	f.modeHintLabel = text
+	f.modeHintBox = box
+}
+
+func modeHintText(isEdit bool) string {
+	if isEdit {
+		return "编辑模式"
+	}
+	return "常态模式"
+}
+
+func (f *FloatingWindow) showModeHint(isEdit bool) {
+	if f == nil || f.modeHintLabel == nil || f.modeHintBox == nil {
+		return
+	}
+
+	f.modeHintMu.Lock()
+	if f.modeHintTimer != nil {
+		f.modeHintTimer.Stop()
+		f.modeHintTimer = nil
+	}
+	hintText := modeHintText(isEdit)
+	fyne.Do(func() {
+		f.modeHintLabel.SetText(hintText)
+		f.modeHintBox.Show()
+		f.modeHintBox.Refresh()
+	})
+
+	timer := time.AfterFunc(modeHintDuration, func() {
+		f.hideModeHint()
+	})
+	f.modeHintTimer = timer
+	f.modeHintMu.Unlock()
+}
+
+func (f *FloatingWindow) hideModeHint() {
+	if f == nil || f.modeHintBox == nil {
+		return
+	}
+
+	f.modeHintMu.Lock()
+	f.modeHintTimer = nil
+	f.modeHintMu.Unlock()
+
+	fyne.Do(func() {
+		f.modeHintBox.Hide()
+		if f.Window != nil && f.Window.Canvas() != nil {
+			f.Window.Canvas().Refresh(f.modeHintBox)
+		}
+	})
 }
