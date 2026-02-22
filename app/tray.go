@@ -82,7 +82,7 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 		}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("设置", func() {
-			openSettingsWindow(a)
+			openSettingsWindow(a, win)
 		}),
 		fyne.NewMenuItem("退出", func() {
 			a.Quit()

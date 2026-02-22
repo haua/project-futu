@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"github.com/haua/futu/app/platform"
+	"github.com/haua/futu/app/utils"
 )
 
 const lastImagePathKey = "player.last_image_path"
@@ -50,7 +51,7 @@ func NewPlayer(a fyne.App, w fyne.Window) *Player {
 	savedWidth := float32(a.Preferences().Float(lastCanvasWidthKey))
 	initialZoom := float32(1.0)
 	if savedWidth > 0 {
-		initialZoom = clampFloat32(savedWidth/defaultImageSize, minZoom, maxZoom)
+		initialZoom = utils.ClampFloat32(savedWidth/defaultImageSize, minZoom, maxZoom)
 	}
 
 	p := &Player{
@@ -186,7 +187,7 @@ func (p *Player) AdjustScaleByScroll(ev *fyne.ScrollEvent) {
 }
 
 func (p *Player) adjustScaleAt(delta float32, anchor fyne.Position) {
-	target := clampFloat32(p.zoom+delta, minZoom, maxZoom)
+	target := utils.ClampFloat32(p.zoom+delta, minZoom, maxZoom)
 	if target == p.zoom {
 		return
 	}
@@ -240,7 +241,7 @@ func (p *Player) updateBaseSize(width, height int) {
 	if p.baseSize.Width > 0 && targetWidth > 0 {
 		p.zoom = targetWidth / p.baseSize.Width
 	}
-	p.zoom = clampFloat32(p.zoom, minZoom, maxZoom)
+	p.zoom = utils.ClampFloat32(p.zoom, minZoom, maxZoom)
 
 	newSize := p.scaledSizeForZoom(p.zoom)
 	p.applyScaledSize()
@@ -269,16 +270,6 @@ func maxFloat32(a, b float32) float32 {
 		return a
 	}
 	return b
-}
-
-func clampFloat32(v, min, max float32) float32 {
-	if v < min {
-		return min
-	}
-	if v > max {
-		return max
-	}
-	return v
 }
 
 func clampPosition(pos fyne.Position, bounds fyne.Size) fyne.Position {

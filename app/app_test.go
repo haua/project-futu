@@ -117,20 +117,23 @@ func TestToggleEditMode_EditModeRestoresOpaque(t *testing.T) {
 func TestOpacityByCursorDistance(t *testing.T) {
 	t.Parallel()
 
-	if got := opacityByCursorDistance(-1); got != 0 {
+	if got := opacityByCursorDistance(-1, 1); got != 0 {
 		t.Fatalf("opacity(-1) = %v, want 0", got)
 	}
-	if got := opacityByCursorDistance(0); got != 0 {
+	if got := opacityByCursorDistance(0, 1); got != 0 {
 		t.Fatalf("opacity(0) = %v, want 0", got)
 	}
-	if got := opacityByCursorDistance(mouseFadeRange / 2); math.Abs(got-0.5) > 1e-6 {
+	if got := opacityByCursorDistance(mouseFadeRange/2, 1); math.Abs(got-0.5) > 1e-6 {
 		t.Fatalf("opacity(half) = %v, want 0.5", got)
 	}
-	if got := opacityByCursorDistance(mouseFadeRange); got != 1 {
+	if got := opacityByCursorDistance(mouseFadeRange, 1); got != 1 {
 		t.Fatalf("opacity(range) = %v, want 1", got)
 	}
-	if got := opacityByCursorDistance(mouseFadeRange + 10); got != 1 {
+	if got := opacityByCursorDistance(mouseFadeRange+10, 1); got != 1 {
 		t.Fatalf("opacity(range+) = %v, want 1", got)
+	}
+	if got := opacityByCursorDistance(mouseFadeRange, 0.7); math.Abs(got-0.7) > 1e-6 {
+		t.Fatalf("opacity(range,max=0.7) = %v, want 0.7", got)
 	}
 }
 
@@ -174,6 +177,52 @@ func TestSaveWindowPosition(t *testing.T) {
 	}
 	if !prefs.Bool(windowPosSetKey) {
 		t.Fatalf("windowPosSetKey should be true")
+	}
+}
+
+func TestSetMouseFarOpacity_PersistsPreference(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+
+	fw := &FloatingWindow{App: a}
+	fw.SetMouseFarOpacity(0.6)
+
+	if got := fw.MouseFarOpacity(); math.Abs(got-0.6) > 0.01 {
+		t.Fatalf("MouseFarOpacity() = %v, want about 0.6", got)
+	}
+	if got := a.Preferences().Float(mouseFarOpacityKey); math.Abs(got-0.6) > 0.01 {
+		t.Fatalf("saved mouseFarOpacity = %v, want about 0.6", got)
+	}
+}
+
+func TestRestoreMouseFarOpacity_DefaultIsOne(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+
+	fw := &FloatingWindow{App: a}
+	fw.restoreMouseFarOpacity()
+
+	if got := fw.MouseFarOpacity(); got != 1 {
+		t.Fatalf("MouseFarOpacity() = %v, want 1", got)
+	}
+}
+
+func TestRestoreMouseFarOpacity_FromPreference(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+	a.Preferences().SetFloat(mouseFarOpacityKey, 0.7)
+
+	fw := &FloatingWindow{App: a}
+	fw.restoreMouseFarOpacity()
+
+	if got := fw.MouseFarOpacity(); math.Abs(got-0.7) > 0.01 {
+		t.Fatalf("MouseFarOpacity() = %v, want about 0.7", got)
 	}
 }
 

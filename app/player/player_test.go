@@ -11,6 +11,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	fynetest "fyne.io/fyne/v2/test"
+	"github.com/haua/futu/app/utils"
 )
 
 func TestClampFloat32(t *testing.T) {
@@ -32,9 +33,9 @@ func TestClampFloat32(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := clampFloat32(tc.v, tc.min, tc.max)
+			got := utils.ClampFloat32(tc.v, tc.min, tc.max)
 			if got != tc.want {
-				t.Fatalf("clampFloat32(%v, %v, %v) = %v, want %v", tc.v, tc.min, tc.max, got, tc.want)
+				t.Fatalf("ClampFloat32(%v, %v, %v) = %v, want %v", tc.v, tc.min, tc.max, got, tc.want)
 			}
 		})
 	}

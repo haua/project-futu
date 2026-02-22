@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/haua/futu/app/utils"
 )
 
 const (
@@ -74,7 +75,7 @@ func operationGuideText() string {
 }
 
 func settingsAppendNoticeText() string {
-	return "后续设置项会追加到本页。"
+	return "设置："
 }
 
 func newSelectableText(text string, multiline bool, baseTheme fyne.Theme) fyne.CanvasObject {
@@ -105,7 +106,31 @@ func newSelectableText(text string, multiline bool, baseTheme fyne.Theme) fyne.C
 	return container.NewThemeOverride(entry, plainSelectableTheme{base: baseTheme})
 }
 
-func openSettingsWindow(a fyne.App) {
+func newMouseFarOpacitySetting(win *FloatingWindow) fyne.CanvasObject {
+	if win == nil {
+		return widget.NewLabel("无法加载透明度设置")
+	}
+
+	label := widget.NewLabel("")
+	slider := widget.NewSlider(1, 100)
+	slider.Step = 1
+
+	updateLabel := func(v float64) {
+		label.SetText(fmt.Sprintf("常态模式下最高不透明度: %d%%", int(v+0.5)))
+	}
+
+	current := utils.ClampFloat64(win.MouseFarOpacity()*100, 1, 100)
+	slider.SetValue(current)
+	updateLabel(current)
+	slider.OnChanged = func(v float64) {
+		updateLabel(v)
+		win.SetMouseFarOpacity(v / 100)
+	}
+
+	return container.NewVBox(label, slider)
+}
+
+func openSettingsWindow(a fyne.App, win *FloatingWindow) {
 	if a == nil {
 		return
 	}
@@ -118,7 +143,8 @@ func openSettingsWindow(a fyne.App) {
 		widget.NewSeparator(),
 		newSelectableText(operationGuideText(), true, baseTheme),
 		widget.NewSeparator(),
-		newSelectableText(settingsAppendNoticeText(), true, baseTheme),
+		newSelectableText(settingsAppendNoticeText(), false, baseTheme),
+		newMouseFarOpacitySetting(win),
 	)
 
 	scroll := container.NewVScroll(content)

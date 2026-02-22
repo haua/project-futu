@@ -47,11 +47,7 @@ func (c *WindowOpacity) Set(opacity float64) bool {
 		return false
 	}
 
-	if opacity < 0 {
-		opacity = 0
-	} else if opacity > 1 {
-		opacity = 1
-	}
+	opacity = ClampFloat64(opacity, 0, 1)
 	alpha := byte(math.Round(opacity * 255))
 
 	okSet := false
