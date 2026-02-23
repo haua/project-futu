@@ -28,7 +28,7 @@ func appVersionText(a fyne.App) string {
 
 func softwareInfoText(a fyne.App) string {
 	return strings.Join([]string{
-		"软件信息",
+		"一张浮图，半刻治愈",
 		appVersionText(a),
 		"作者：" + settingsAuthor,
 		"许可证：" + settingsLicense,
