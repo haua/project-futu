@@ -10,6 +10,7 @@ import (
 	desktopdrv "fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 	"github.com/haua/futu/app/utils"
+	sqweek "github.com/sqweek/dialog"
 )
 
 const (
@@ -312,6 +313,121 @@ func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fy
 	)
 }
 
+func imageSourceModeLabel(mode string) string {
+	if mode == imageSourceModeFolder {
+		return "文件夹随机（每小时）"
+	}
+	return "固定图片"
+}
+
+func imageSourceModeFromLabel(label string) string {
+	if strings.Contains(label, "文件夹") {
+		return imageSourceModeFolder
+	}
+	return imageSourceModeSingle
+}
+
+func sourcePathText(prefix, path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return prefix + "未设置"
+	}
+	return prefix + path
+}
+
+func newImageSourceSetting(win *FloatingWindow) fyne.CanvasObject {
+	if win == nil {
+		return widget.NewLabel("无法加载播放来源设置")
+	}
+
+	status := widget.NewLabel("")
+	status.Wrapping = fyne.TextWrapWord
+	status.Hide()
+
+	fixedPathLabel := widget.NewLabel("")
+	fixedPathLabel.Wrapping = fyne.TextWrapWord
+	folderPathLabel := widget.NewLabel("")
+	folderPathLabel.Wrapping = fyne.TextWrapWord
+
+	modeRadio := widget.NewRadioGroup([]string{
+		imageSourceModeLabel(imageSourceModeSingle),
+		imageSourceModeLabel(imageSourceModeFolder),
+	}, nil)
+
+	refreshView := func() {
+		fixedPathLabel.SetText(sourcePathText("固定图片：", win.FixedImagePath()))
+		folderPathLabel.SetText(sourcePathText("随机文件夹：", win.RandomFolderPath()))
+		modeRadio.SetSelected(imageSourceModeLabel(win.ImageSourceMode()))
+	}
+	refreshView()
+
+	showError := func(text string) {
+		status.SetText(text)
+		status.Show()
+	}
+	hideError := func() {
+		status.Hide()
+		status.SetText("")
+	}
+
+	modeRadio.OnChanged = func(selected string) {
+		if selected == "" {
+			return
+		}
+		if win.SetImageSourceMode(imageSourceModeFromLabel(selected)) {
+			hideError()
+			refreshView()
+			return
+		}
+		refreshView()
+		showError("切换失败：请先选择有效的图片或文件夹（文件夹需包含支持格式）")
+	}
+
+	selectFixedBtn := widget.NewButton("选择图片", func() {
+		filterName, allow := imageFileFilters()
+		filename, err := sqweek.File().Filter(filterName, allow...).Load()
+		if err != nil {
+			return
+		}
+		if !win.SetFixedImage(filename) {
+			showError("设置失败：请选择有效图片文件")
+			return
+		}
+		hideError()
+		refreshView()
+	})
+
+	selectFolderBtn := widget.NewButton("选择文件夹", func() {
+		folder, err := sqweek.Directory().Browse()
+		if err != nil {
+			return
+		}
+		if !win.SetRandomImageFolder(folder) {
+			showError("设置失败：文件夹不存在或没有支持的图片")
+			return
+		}
+		hideError()
+		refreshView()
+	})
+
+	randomNowBtn := widget.NewButton("立即随机一张", func() {
+		if win.PlayRandomImageNow() {
+			hideError()
+			return
+		}
+		showError("随机失败：请先设置有效的图片文件夹")
+	})
+
+	return container.NewVBox(
+		widget.NewLabel("播放来源"),
+		modeRadio,
+		container.NewHBox(selectFixedBtn, selectFolderBtn, randomNowBtn),
+		fixedPathLabel,
+		folderPathLabel,
+		status,
+	)
+}
+
 func openSettingsWindow(a fyne.App, win *FloatingWindow) {
 	if a == nil {
 		return
@@ -325,6 +441,7 @@ func openSettingsWindow(a fyne.App, win *FloatingWindow) {
 		newReadonlyText(operationGuideText()),
 		widget.NewSeparator(),
 		newReadonlyText(settingsAppendNoticeText()),
+		newImageSourceSetting(win),
 		newLaunchAtStartupSetting(win),
 		newMouseFarOpacitySetting(win),
 		widget.NewSeparator(),

@@ -585,6 +585,8 @@ func (f *FloatingWindow) Shutdown() {
 	if f == nil {
 		return
 	}
+	f.stopMouseFadeLoop()
+	f.stopImageTicker()
 	if f.hotkeyUnregister != nil {
 		f.hotkeyUnregister()
 	}

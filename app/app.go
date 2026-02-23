@@ -3,6 +3,7 @@ package app
 import (
 	"image/color"
 	"math"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,6 +39,7 @@ const (
 	mouseFadeRange     = float32(200)
 	mouseFadeTick      = 50 * time.Millisecond
 	modeHintDuration   = 1200 * time.Millisecond
+	imageTickInterval  = time.Hour
 )
 
 type FloatingWindow struct {
@@ -84,6 +86,14 @@ type FloatingWindow struct {
 	modeHintBox          fyne.CanvasObject
 	modeHintMu           sync.Mutex
 	modeHintTimer        *time.Timer
+	imageSourceMu        sync.Mutex
+	imageSourceMode      string
+	fixedImagePath       string
+	randomFolderPath     string
+	lastRandomImagePath  string
+	imageTickerStop      chan struct{}
+	imageTickerInterval  time.Duration
+	randomIntn           func(int) int
 }
 
 type modeHintTheme struct {
@@ -132,16 +142,18 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 	player_instance := player.NewPlayer(a, w)
 
 	fw := &FloatingWindow{
-		App:           a,
-		Window:        w,
-		Player:        player_instance,
-		topMostCtl:    utils.NewWindowTopMost(w),
-		taskbarCtl:    utils.NewWindowTaskbar(w),
-		mouseCtl:      utils.NewWindowMousePassthrough(w),
-		opacityCtl:    utils.NewWindowOpacity(w),
-		startupCtl:    utils.NewLaunchAtStartup(startupValueName),
-		hotkeyCtl:     utils.NewGlobalHotkey(),
-		hideHotkeyCtl: utils.NewGlobalHotkey(),
+		App:                 a,
+		Window:              w,
+		Player:              player_instance,
+		topMostCtl:          utils.NewWindowTopMost(w),
+		taskbarCtl:          utils.NewWindowTaskbar(w),
+		mouseCtl:            utils.NewWindowMousePassthrough(w),
+		opacityCtl:          utils.NewWindowOpacity(w),
+		startupCtl:          utils.NewLaunchAtStartup(startupValueName),
+		hotkeyCtl:           utils.NewGlobalHotkey(),
+		hideHotkeyCtl:       utils.NewGlobalHotkey(),
+		imageTickerInterval: imageTickInterval,
+		randomIntn:          rand.Intn,
 	}
 	fw.topMostSet = fw.topMostCtl.Set
 	fw.taskbarSet = fw.taskbarCtl.SetVisible
@@ -169,6 +181,7 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 	fw.RefreshLaunchAtStartup()
 	fw.restoreModeToggleHotkey()
 	fw.restoreHideWindowHotkey()
+	fw.restoreImageSource()
 	fw.editMode.Store(true)
 	fw.mouseFarOpacity = opacityToAlpha(1)
 
@@ -198,7 +211,7 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 
 func (f *FloatingWindow) Show() {
 	// 播放上一次选的图片
-	f.Player.PlayLast()
+	f.playImageOnStartup()
 	f.Window.Show()
 	f.restoreWindowPlacement()
 	f.restoreAlwaysOnTop()

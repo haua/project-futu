@@ -61,6 +61,18 @@ func setTrayIconByState(setIcon func(fyne.Resource), isEdit bool) {
 	}
 }
 
+func pickAndPlayImage(win *FloatingWindow) {
+	if win == nil {
+		return
+	}
+	filterName, allow := imageFileFilters()
+	filename, err := sqweek.File().Filter(filterName, allow...).Load()
+	if err != nil {
+		return
+	}
+	_ = win.SetFixedImage(filename)
+}
+
 func SetupTray(a fyne.App, win *FloatingWindow) {
 	desk, ok := a.(desktop.App)
 	if !ok {
@@ -107,12 +119,7 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 		windowVisibilityItem,
 		fyne.NewMenuItem("\u66f4\u6362\u56fe\u7247", func() {
 			// Use native file picker for better UX than Fyne file dialog.
-			filterName, allow := imageFileFilters()
-			filename, err := sqweek.File().Filter(filterName, allow...).Load()
-			if err != nil {
-				return
-			}
-			win.Player.Play(filename)
+			pickAndPlayImage(win)
 		}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("\u8bbe\u7f6e", func() {
