@@ -19,3 +19,7 @@ func IsWindowInVisibleBounds(_ fyne.Position, _ fyne.Size) bool {
 func GetCursorPosition() (fyne.Position, bool) {
 	return fyne.Position{}, false
 }
+
+func GetScreenWidthPixels() (int32, bool) {
+	return 1920, true
+}

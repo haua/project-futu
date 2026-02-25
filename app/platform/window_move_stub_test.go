@@ -47,3 +47,15 @@ func TestGetCursorPositionStub(t *testing.T) {
 		t.Fatalf("stub cursor position should be zero value")
 	}
 }
+
+func TestGetScreenWidthPixelsStub(t *testing.T) {
+	t.Parallel()
+
+	width, ok := GetScreenWidthPixels()
+	if !ok {
+		t.Fatalf("stub GetScreenWidthPixels should return ok=true")
+	}
+	if width != 1920 {
+		t.Fatalf("stub screen width should be 1920")
+	}
+}

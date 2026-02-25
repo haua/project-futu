@@ -22,9 +22,8 @@ const lastCanvasWidthKey = "player.last_canvas_width"
 
 const (
 	defaultImageSize = 200
-	minZoom          = 0.2
-	maxZoom          = 2.0
 	zoomStep         = 0.1
+	minWidthPixels   = 10
 )
 
 const (
@@ -43,6 +42,8 @@ type Player struct {
 	zoom         float32
 }
 
+var getScreenWidthPixels = platform.GetScreenWidthPixels
+
 func NewPlayer(a fyne.App, w fyne.Window) *Player {
 	img := canvas.NewImageFromImage(nil)
 	img.Resize(fyne.NewSize(defaultImageSize, defaultImageSize))
@@ -51,7 +52,7 @@ func NewPlayer(a fyne.App, w fyne.Window) *Player {
 	savedWidth := float32(a.Preferences().Float(lastCanvasWidthKey))
 	initialZoom := float32(1.0)
 	if savedWidth > 0 {
-		initialZoom = utils.ClampFloat32(savedWidth/defaultImageSize, minZoom, maxZoom)
+		initialZoom = savedWidth / defaultImageSize
 	}
 
 	p := &Player{
@@ -65,6 +66,7 @@ func NewPlayer(a fyne.App, w fyne.Window) *Player {
 		zoom:        initialZoom,
 		pauseSignal: make(chan struct{}, 1),
 	}
+	p.zoom = p.clampZoomByPixels(p.zoom)
 	p.applyScaledSize()
 	return p
 }
@@ -187,7 +189,7 @@ func (p *Player) AdjustScaleByScroll(ev *fyne.ScrollEvent) {
 }
 
 func (p *Player) adjustScaleAt(delta float32, anchor fyne.Position) {
-	target := utils.ClampFloat32(p.zoom+delta, minZoom, maxZoom)
+	target := p.clampZoomByPixels(p.zoom + delta)
 	if target == p.zoom {
 		return
 	}
@@ -241,7 +243,7 @@ func (p *Player) updateBaseSize(width, height int) {
 	if p.baseSize.Width > 0 && targetWidth > 0 {
 		p.zoom = targetWidth / p.baseSize.Width
 	}
-	p.zoom = utils.ClampFloat32(p.zoom, minZoom, maxZoom)
+	p.zoom = p.clampZoomByPixels(p.zoom)
 
 	newSize := p.scaledSizeForZoom(p.zoom)
 	p.applyScaledSize()
@@ -263,6 +265,39 @@ func (p *Player) scaledSizeForZoom(zoom float32) fyne.Size {
 	width := float32(math.Round(float64(p.baseSize.Width * zoom)))
 	height := float32(math.Round(float64(p.baseSize.Height * zoom)))
 	return fyne.NewSize(maxFloat32(width, 1), maxFloat32(height, 1))
+}
+
+func (p *Player) clampZoomByPixels(zoom float32) float32 {
+	minZoom, maxZoom := p.zoomBoundsByPixels()
+	return utils.ClampFloat32(zoom, minZoom, maxZoom)
+}
+
+func (p *Player) zoomBoundsByPixels() (float32, float32) {
+	if p == nil || p.baseSize.Width <= 0 {
+		return 1.0, 1.0
+	}
+
+	scale := float32(1.0)
+	if p.window != nil {
+		if c := p.window.Canvas(); c != nil && c.Scale() > 0 {
+			scale = c.Scale()
+		}
+	}
+
+	baseWidthPixels := p.baseSize.Width * scale
+	if baseWidthPixels <= 0 {
+		return 1.0, 1.0
+	}
+
+	minZoom := float32(minWidthPixels) / baseWidthPixels
+	maxZoom := minZoom
+	if screenWidth, ok := getScreenWidthPixels(); ok && screenWidth > 0 {
+		maxZoom = float32(screenWidth) / baseWidthPixels
+	}
+	if maxZoom < minZoom {
+		maxZoom = minZoom
+	}
+	return minZoom, maxZoom
 }
 
 func maxFloat32(a, b float32) float32 {

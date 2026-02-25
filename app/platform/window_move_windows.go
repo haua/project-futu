@@ -134,6 +134,14 @@ func IsWindowInVisibleBounds(pos fyne.Position, size fyne.Size) bool {
 	return winLeft >= left && winTop >= top && winRight <= right && winBottom <= bottom
 }
 
+func GetScreenWidthPixels() (int32, bool) {
+	width, ok := getSystemMetric(smCXVirtualScreen)
+	if !ok || width <= 0 {
+		return 0, false
+	}
+	return width, true
+}
+
 func getSystemMetric(index int32) (int32, bool) {
 	r1, _, _ := procGetSystemMetrics.Call(uintptr(index))
 	return int32(r1), true
