@@ -92,8 +92,10 @@ func SetupTray(a fyne.App, win *FloatingWindow) {
 	}
 
 	toggleMode := func() {
-		next := win.ToggleEditMode()
-		refreshTrayState(next)
+		fyne.Do(func() {
+			next := win.ToggleEditMode()
+			refreshTrayState(next)
+		})
 	}
 
 	topMostItem = fyne.NewMenuItem(topMostMenuLabel(win.IsAlwaysOnTop()), func() {

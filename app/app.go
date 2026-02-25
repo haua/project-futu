@@ -82,6 +82,7 @@ type FloatingWindow struct {
 	hideWindowHotkey     string
 	windowHidden         atomic.Bool
 	hotkeyCapturing      atomic.Bool
+	modeSwitchMu         sync.Mutex
 	modeHintLabel        *widget.Label
 	modeHintBox          fyne.CanvasObject
 	modeHintMu           sync.Mutex
@@ -237,26 +238,34 @@ func (f *FloatingWindow) IsEditMode() bool {
 
 func (f *FloatingWindow) ToggleEditMode() bool {
 	f.EnsureWindowVisible()
-	for {
-		current := f.editMode.Load()
-		next := !current
-		if f.editMode.CompareAndSwap(current, next) {
-			f.applyTaskbarVisibility(next)
-			f.applyMousePassthrough(!next)
-			if next {
-				f.stopMouseFadeLoop()
-				if f.Player != nil {
-					f.Player.SetFullyTransparentPaused(false)
-				}
-				f.applyWindowOpacity(1.0)
-			} else {
-				f.startMouseFadeLoop()
-				f.updateWindowOpacityByCursor()
-			}
-			f.showModeHint(next)
-			return next
-		}
+	f.modeSwitchMu.Lock()
+	defer f.modeSwitchMu.Unlock()
+
+	current := f.editMode.Load()
+	next := !current
+
+	// If passthrough switch fails, keep previous mode to avoid UI state drifting
+	// from native window input state (the window would look editable but still
+	// ignore pointer input).
+	hasMousePassthroughCtl := f.mouseSet != nil || f.mouseCtl != nil
+	if hasMousePassthroughCtl && !f.applyMousePassthrough(!next) {
+		return current
 	}
+
+	f.editMode.Store(next)
+	f.applyTaskbarVisibility(next)
+	if next {
+		f.stopMouseFadeLoop()
+		if f.Player != nil {
+			f.Player.SetFullyTransparentPaused(false)
+		}
+		f.applyWindowOpacity(1.0)
+	} else {
+		f.startMouseFadeLoop()
+		f.updateWindowOpacityByCursor()
+	}
+	f.showModeHint(next)
+	return next
 }
 
 func (f *FloatingWindow) IsAlwaysOnTop() bool {

@@ -91,6 +91,32 @@ func TestToggleEditMode_UpdatesMousePassthrough(t *testing.T) {
 	}
 }
 
+func TestToggleEditMode_KeepModeWhenMousePassthroughFails(t *testing.T) {
+	t.Parallel()
+
+	var calls []bool
+	fw := &FloatingWindow{
+		mouseSet: func(enabled bool) bool {
+			calls = append(calls, enabled)
+			return false
+		},
+	}
+	fw.editMode.Store(false)
+
+	if got := fw.ToggleEditMode(); got {
+		t.Fatalf("toggle should keep previous mode when passthrough switch fails")
+	}
+	if fw.IsEditMode() {
+		t.Fatalf("edit mode should remain false when passthrough switch fails")
+	}
+	if len(calls) != 1 {
+		t.Fatalf("mouseSet calls = %d, want 1", len(calls))
+	}
+	if calls[0] {
+		t.Fatalf("mouseSet should try disabling passthrough when entering edit mode")
+	}
+}
+
 func TestToggleEditMode_EditModeRestoresOpaque(t *testing.T) {
 	t.Parallel()
 
