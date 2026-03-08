@@ -130,6 +130,37 @@ func newLaunchAtStartupSetting(win *FloatingWindow) fyne.CanvasObject {
 	return container.NewVBox(check, status)
 }
 
+func newCaptureExcludeSetting(win *FloatingWindow) fyne.CanvasObject {
+	if win == nil {
+		return widget.NewLabel("无法加载截屏排除设置")
+	}
+
+	status := widget.NewLabel("")
+	status.Hide()
+	check := widget.NewCheck("窗口不出现在截屏中", nil)
+
+	resetting := false
+	check.OnChanged = func(exclude bool) {
+		if resetting {
+			return
+		}
+		if win.SetCaptureExcluded(exclude) {
+			status.Hide()
+			status.SetText("")
+			return
+		}
+
+		resetting = true
+		check.SetChecked(!exclude)
+		resetting = false
+		status.SetText("设置失败：当前系统不支持或权限不足")
+		status.Show()
+	}
+
+	check.SetChecked(win.IsCaptureExcluded())
+	return container.NewVBox(check, status)
+}
+
 type focusAwareButton struct {
 	widget.Button
 	onFocusLost func()
@@ -443,6 +474,7 @@ func openSettingsWindow(a fyne.App, win *FloatingWindow) {
 		newReadonlyText(settingsAppendNoticeText()),
 		newImageSourceSetting(win),
 		newLaunchAtStartupSetting(win),
+		newCaptureExcludeSetting(win),
 		newMouseFarOpacitySetting(win),
 		widget.NewSeparator(),
 		newModeToggleHotkeySetting(win, settingsWin),

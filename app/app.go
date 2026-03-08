@@ -30,16 +30,18 @@ var (
 )
 
 const (
-	windowPosXKey      = "window.pos_x"
-	windowPosYKey      = "window.pos_y"
-	windowPosSetKey    = "window.pos_set"
-	alwaysOnTopKey     = "window.always_on_top"
-	mouseFarOpacityKey = "window.mouse_far_opacity"
-	startupValueName   = "Futu"
-	mouseFadeRange     = float32(200)
-	mouseFadeTick      = 50 * time.Millisecond
-	modeHintDuration   = 1200 * time.Millisecond
-	imageTickInterval  = time.Hour
+	windowPosXKey        = "window.pos_x"
+	windowPosYKey        = "window.pos_y"
+	windowPosSetKey      = "window.pos_set"
+	alwaysOnTopKey       = "window.always_on_top"
+	mouseFarOpacityKey   = "window.mouse_far_opacity"
+	captureExcludeKey    = "window.capture_exclude"
+	captureExcludeSetKey = "window.capture_exclude_set"
+	startupValueName     = "Futu"
+	mouseFadeRange       = float32(200)
+	mouseFadeTick        = 50 * time.Millisecond
+	modeHintDuration     = 1200 * time.Millisecond
+	imageTickInterval    = time.Hour
 )
 
 type FloatingWindow struct {
@@ -57,6 +59,8 @@ type FloatingWindow struct {
 	mouseSet             func(enabled bool) bool
 	opacityCtl           *utils.WindowOpacity
 	opacitySet           func(opacity float64) bool
+	displayAffinityCtl   *utils.WindowDisplayAffinity
+	displayAffinitySet   func(exclude bool) bool
 	fadeLoopMu           sync.Mutex
 	fadeLoopStop         chan struct{}
 	fadeStateMu          sync.Mutex
@@ -65,6 +69,7 @@ type FloatingWindow struct {
 	lastOpacity          uint8
 	hasOpacity           bool
 	mouseFarOpacity      uint8
+	excludeFromCapture   atomic.Bool
 	launchAtStartup      atomic.Bool
 	startupCtl           *utils.LaunchAtStartup
 	startupSet           func(enabled bool) bool
@@ -150,6 +155,7 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 		taskbarCtl:          utils.NewWindowTaskbar(w),
 		mouseCtl:            utils.NewWindowMousePassthrough(w),
 		opacityCtl:          utils.NewWindowOpacity(w),
+		displayAffinityCtl:  utils.NewWindowDisplayAffinity(w),
 		startupCtl:          utils.NewLaunchAtStartup(startupValueName),
 		hotkeyCtl:           utils.NewGlobalHotkey(),
 		hideHotkeyCtl:       utils.NewGlobalHotkey(),
@@ -160,6 +166,7 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 	fw.taskbarSet = fw.taskbarCtl.SetVisible
 	fw.mouseSet = fw.mouseCtl.SetEnabled
 	fw.opacitySet = fw.opacityCtl.Set
+	fw.displayAffinitySet = fw.displayAffinityCtl.SetExcludeFromCapture
 	fw.startupSet = func(enabled bool) bool {
 		if fw.startupCtl == nil {
 			return false
@@ -180,6 +187,7 @@ func NewFloatingWindow(a fyne.App) *FloatingWindow {
 	fw.hideHotkeyRegister = fw.hideHotkeyCtl.Register
 	fw.hideHotkeyUnregister = fw.hideHotkeyCtl.Unregister
 	fw.RefreshLaunchAtStartup()
+	fw.restoreCaptureExclude()
 	fw.restoreModeToggleHotkey()
 	fw.restoreHideWindowHotkey()
 	fw.restoreImageSource()
@@ -214,6 +222,7 @@ func (f *FloatingWindow) Show() {
 	// 播放上一次选的图片
 	f.playImageOnStartup()
 	f.Window.Show()
+	f.ReapplyCaptureExclude()
 	f.restoreWindowPlacement()
 	f.restoreAlwaysOnTop()
 	f.restoreMouseFarOpacity()
@@ -396,6 +405,39 @@ func (f *FloatingWindow) applyWindowOpacity(opacity float64) bool {
 	return f.opacityCtl.Set(opacity)
 }
 
+func (f *FloatingWindow) IsCaptureExcluded() bool {
+	return f.excludeFromCapture.Load()
+}
+
+func (f *FloatingWindow) SetCaptureExcluded(exclude bool) bool {
+	if !f.applyCaptureExcluded(exclude) {
+		return false
+	}
+	f.excludeFromCapture.Store(exclude)
+	f.saveCaptureExcludePreference(exclude)
+	return true
+}
+
+func (f *FloatingWindow) ReapplyCaptureExclude() bool {
+	if f == nil {
+		return false
+	}
+	if !f.IsCaptureExcluded() {
+		return true
+	}
+	return f.applyCaptureExcluded(true)
+}
+
+func (f *FloatingWindow) applyCaptureExcluded(exclude bool) bool {
+	if f.displayAffinitySet != nil {
+		return f.displayAffinitySet(exclude)
+	}
+	if f.displayAffinityCtl == nil {
+		return false
+	}
+	return f.displayAffinityCtl.SetExcludeFromCapture(exclude)
+}
+
 func (f *FloatingWindow) startMouseFadeLoop() {
 	f.fadeLoopMu.Lock()
 	if f.fadeLoopStop != nil {
@@ -576,6 +618,34 @@ func (f *FloatingWindow) saveAlwaysOnTopPreference(enabled bool) {
 		return
 	}
 	f.App.Preferences().SetBool(alwaysOnTopKey, enabled)
+}
+
+func (f *FloatingWindow) saveCaptureExcludePreference(exclude bool) {
+	if f == nil || f.App == nil {
+		return
+	}
+	prefs := f.App.Preferences()
+	prefs.SetBool(captureExcludeKey, exclude)
+	prefs.SetBool(captureExcludeSetKey, true)
+}
+
+func (f *FloatingWindow) restoreCaptureExclude() {
+	if f == nil {
+		return
+	}
+
+	exclude := true
+	if f.App != nil {
+		prefs := f.App.Preferences()
+		if prefs.Bool(captureExcludeSetKey) {
+			exclude = prefs.Bool(captureExcludeKey)
+		}
+	}
+
+	if f.SetCaptureExcluded(exclude) {
+		return
+	}
+	f.excludeFromCapture.Store(false)
 }
 
 func (f *FloatingWindow) restoreAlwaysOnTop() {

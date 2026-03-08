@@ -528,6 +528,141 @@ func TestRefreshLaunchAtStartup_FailureKeepsState(t *testing.T) {
 	}
 }
 
+func TestSetCaptureExcluded_NoController(t *testing.T) {
+	t.Parallel()
+
+	fw := &FloatingWindow{}
+	if fw.IsCaptureExcluded() {
+		t.Fatalf("zero value capture-excluded should be false")
+	}
+
+	if ok := fw.SetCaptureExcluded(true); ok {
+		t.Fatalf("SetCaptureExcluded should fail when displayAffinityCtl is nil")
+	}
+	if fw.IsCaptureExcluded() {
+		t.Fatalf("state should remain unchanged when SetCaptureExcluded fails")
+	}
+}
+
+func TestSetCaptureExcluded_SuccessPersistsPreference(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+
+	var calls []bool
+	fw := &FloatingWindow{
+		App: a,
+		displayAffinitySet: func(exclude bool) bool {
+			calls = append(calls, exclude)
+			return true
+		},
+	}
+
+	if ok := fw.SetCaptureExcluded(true); !ok {
+		t.Fatalf("SetCaptureExcluded(true) should succeed")
+	}
+	if !fw.IsCaptureExcluded() {
+		t.Fatalf("capture-excluded should be true")
+	}
+	if len(calls) != 1 || !calls[0] {
+		t.Fatalf("displayAffinitySet calls = %v, want [true]", calls)
+	}
+	if !a.Preferences().Bool(captureExcludeSetKey) || !a.Preferences().Bool(captureExcludeKey) {
+		t.Fatalf("capture exclude preference should be persisted to true")
+	}
+
+	if ok := fw.SetCaptureExcluded(false); !ok {
+		t.Fatalf("SetCaptureExcluded(false) should succeed")
+	}
+	if fw.IsCaptureExcluded() {
+		t.Fatalf("capture-excluded should be false")
+	}
+	if len(calls) != 2 || calls[1] {
+		t.Fatalf("displayAffinitySet second call should be false, calls=%v", calls)
+	}
+	if !a.Preferences().Bool(captureExcludeSetKey) || a.Preferences().Bool(captureExcludeKey) {
+		t.Fatalf("capture exclude preference should be persisted to false")
+	}
+}
+
+func TestRestoreCaptureExclude_DefaultEnabled(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	var got bool
+	fw := &FloatingWindow{
+		displayAffinitySet: func(exclude bool) bool {
+			calls++
+			got = exclude
+			return true
+		},
+	}
+
+	fw.restoreCaptureExclude()
+	if calls != 1 || !got {
+		t.Fatalf("restore should apply default true once, calls=%d got=%v", calls, got)
+	}
+	if !fw.IsCaptureExcluded() {
+		t.Fatalf("capture-excluded should default to true")
+	}
+}
+
+func TestRestoreCaptureExclude_FromPreference(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+	a.Preferences().SetBool(captureExcludeSetKey, true)
+	a.Preferences().SetBool(captureExcludeKey, false)
+
+	calls := 0
+	var got bool
+	fw := &FloatingWindow{
+		App: a,
+		displayAffinitySet: func(exclude bool) bool {
+			calls++
+			got = exclude
+			return true
+		},
+	}
+
+	fw.restoreCaptureExclude()
+	if calls != 1 || got {
+		t.Fatalf("restore should apply saved false once, calls=%d got=%v", calls, got)
+	}
+	if fw.IsCaptureExcluded() {
+		t.Fatalf("capture-excluded should restore to false")
+	}
+}
+
+func TestReapplyCaptureExclude_OnlyWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	fw := &FloatingWindow{
+		displayAffinitySet: func(exclude bool) bool {
+			calls++
+			return exclude
+		},
+	}
+
+	if ok := fw.ReapplyCaptureExclude(); !ok {
+		t.Fatalf("ReapplyCaptureExclude should succeed when disabled")
+	}
+	if calls != 0 {
+		t.Fatalf("disabled reapply should not call controller, calls=%d", calls)
+	}
+
+	fw.excludeFromCapture.Store(true)
+	if ok := fw.ReapplyCaptureExclude(); !ok {
+		t.Fatalf("ReapplyCaptureExclude should apply when enabled")
+	}
+	if calls != 1 {
+		t.Fatalf("enabled reapply should call once, calls=%d", calls)
+	}
+}
+
 func TestParseModeToggleHotkey(t *testing.T) {
 	t.Parallel()
 
