@@ -1,4 +1,4 @@
-package app
+﻿package app
 
 import (
 	"fmt"
@@ -44,10 +44,6 @@ func operationGuideText() string {
 		"3. 编辑模式支持拖拽窗口、滚轮缩放",
 		"4. 常态模式会在鼠标靠近时隐藏窗口，不影响你的操作",
 	}, "\n")
-}
-
-func settingsAppendNoticeText() string {
-	return "设置："
 }
 
 func newReadonlyText(text string) fyne.CanvasObject {
@@ -346,7 +342,7 @@ func newModeToggleHotkeySetting(win *FloatingWindow, settingsWin fyne.Window) fy
 
 func imageSourceModeLabel(mode string) string {
 	if mode == imageSourceModeFolder {
-		return "文件夹随机（每小时）"
+		return "文件夹中随机（每小时换图）"
 	}
 	return "固定图片"
 }
@@ -379,16 +375,30 @@ func newImageSourceSetting(win *FloatingWindow) fyne.CanvasObject {
 	fixedPathLabel.Wrapping = fyne.TextWrapWord
 	folderPathLabel := widget.NewLabel("")
 	folderPathLabel.Wrapping = fyne.TextWrapWord
+	fixedSection := container.NewVBox()
+	folderSection := container.NewVBox()
 
 	modeRadio := widget.NewRadioGroup([]string{
 		imageSourceModeLabel(imageSourceModeSingle),
 		imageSourceModeLabel(imageSourceModeFolder),
 	}, nil)
+	modeRadio.Horizontal = true
+
+	switchModeSection := func(mode string) {
+		if mode == imageSourceModeFolder {
+			fixedSection.Hide()
+			folderSection.Show()
+			return
+		}
+		folderSection.Hide()
+		fixedSection.Show()
+	}
 
 	refreshView := func() {
-		fixedPathLabel.SetText(sourcePathText("固定图片：", win.FixedImagePath()))
-		folderPathLabel.SetText(sourcePathText("随机文件夹：", win.RandomFolderPath()))
+		fixedPathLabel.SetText(sourcePathText("图片：", win.FixedImagePath()))
+		folderPathLabel.SetText(sourcePathText("文件夹：", win.RandomFolderPath()))
 		modeRadio.SetSelected(imageSourceModeLabel(win.ImageSourceMode()))
+		switchModeSection(win.ImageSourceMode())
 	}
 	refreshView()
 
@@ -449,12 +459,17 @@ func newImageSourceSetting(win *FloatingWindow) fyne.CanvasObject {
 		showError("随机失败：请先设置有效的图片文件夹")
 	})
 
+	fixedSection.Objects = []fyne.CanvasObject{selectFixedBtn, fixedPathLabel}
+	fixedSection.Refresh()
+	folderSection.Objects = []fyne.CanvasObject{container.NewHBox(selectFolderBtn, randomNowBtn), folderPathLabel}
+	folderSection.Refresh()
+	switchModeSection(win.ImageSourceMode())
+
 	return container.NewVBox(
 		widget.NewLabel("播放来源"),
 		modeRadio,
-		container.NewHBox(selectFixedBtn, selectFolderBtn, randomNowBtn),
-		fixedPathLabel,
-		folderPathLabel,
+		fixedSection,
+		folderSection,
 		status,
 	)
 }
@@ -473,7 +488,6 @@ func openSettingsWindow(a fyne.App, win *FloatingWindow) {
 		widget.NewSeparator(),
 		newImageSourceSetting(win),
 		widget.NewSeparator(),
-		newReadonlyText(settingsAppendNoticeText()),
 		newLaunchAtStartupSetting(win),
 		newCaptureExcludeSetting(win),
 		newMouseFarOpacitySetting(win),
