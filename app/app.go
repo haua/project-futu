@@ -289,6 +289,16 @@ func (f *FloatingWindow) ToggleAlwaysOnTop() bool {
 	return f.IsAlwaysOnTop()
 }
 
+func (f *FloatingWindow) ReapplyAlwaysOnTop() bool {
+	if f == nil {
+		return false
+	}
+	if !f.IsAlwaysOnTop() {
+		return true
+	}
+	return f.applyAlwaysOnTop(true)
+}
+
 func (f *FloatingWindow) IsLaunchAtStartup() bool {
 	return f.launchAtStartup.Load()
 }

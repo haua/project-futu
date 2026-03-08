@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fyne.io/fyne/v2"
 	fyneapp "fyne.io/fyne/v2/app"
 
 	futuapp "github.com/haua/futu/app"
@@ -17,6 +18,11 @@ func main() {
 	})
 	a.Lifecycle().SetOnStopped(func() {
 		win.Shutdown()
+	})
+	a.Lifecycle().SetOnEnteredForeground(func() {
+		fyne.Do(func() {
+			_ = win.ReapplyAlwaysOnTop()
+		})
 	})
 
 	win.Show()

@@ -555,6 +555,7 @@ func (f *FloatingWindow) ToggleWindowVisibility() bool {
 	if f.windowHidden.Load() {
 		f.Window.Show()
 		f.windowHidden.Store(false)
+		_ = f.ReapplyAlwaysOnTop()
 		return true
 	}
 
@@ -572,6 +573,7 @@ func (f *FloatingWindow) EnsureWindowVisible() {
 	}
 	f.Window.Show()
 	f.windowHidden.Store(false)
+	_ = f.ReapplyAlwaysOnTop()
 }
 
 func (f *FloatingWindow) IsWindowVisible() bool {

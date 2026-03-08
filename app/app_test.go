@@ -282,6 +282,48 @@ func TestToggleAlwaysOnTop_NoControllerKeepsState(t *testing.T) {
 	}
 }
 
+func TestReapplyAlwaysOnTop_DisabledSkipsApply(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	fw := &FloatingWindow{
+		topMostSet: func(bool) bool {
+			called = true
+			return true
+		},
+	}
+
+	if ok := fw.ReapplyAlwaysOnTop(); !ok {
+		t.Fatalf("ReapplyAlwaysOnTop should succeed when disabled")
+	}
+	if called {
+		t.Fatalf("ReapplyAlwaysOnTop should not apply when always-on-top is disabled")
+	}
+}
+
+func TestReapplyAlwaysOnTop_EnabledApplies(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	fw := &FloatingWindow{
+		topMostSet: func(enabled bool) bool {
+			calls++
+			return enabled
+		},
+	}
+	fw.alwaysOnTop.Store(true)
+
+	if ok := fw.ReapplyAlwaysOnTop(); !ok {
+		t.Fatalf("ReapplyAlwaysOnTop should apply when always-on-top is enabled")
+	}
+	if calls != 1 {
+		t.Fatalf("topMostSet calls = %d, want 1", calls)
+	}
+	if !fw.IsAlwaysOnTop() {
+		t.Fatalf("always-on-top state should remain true")
+	}
+}
+
 func TestSetAlwaysOnTop_PersistsPreferenceOnSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -682,6 +724,39 @@ func TestToggleWindowVisibility(t *testing.T) {
 	}
 }
 
+func TestToggleWindowVisibility_ShowReappliesAlwaysOnTop(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+	w := a.NewWindow("test")
+	t.Cleanup(w.Close)
+
+	calls := 0
+	fw := &FloatingWindow{
+		Window: w,
+		topMostSet: func(enabled bool) bool {
+			calls++
+			return enabled
+		},
+	}
+	fw.alwaysOnTop.Store(true)
+
+	if visible := fw.ToggleWindowVisibility(); visible {
+		t.Fatalf("first toggle should hide window")
+	}
+	if calls != 0 {
+		t.Fatalf("hide should not reapply always-on-top")
+	}
+
+	if visible := fw.ToggleWindowVisibility(); !visible {
+		t.Fatalf("second toggle should show window")
+	}
+	if calls != 1 {
+		t.Fatalf("show should reapply always-on-top once, calls=%d", calls)
+	}
+}
+
 func TestToggleEditMode_ShowsWindowWhenHidden(t *testing.T) {
 	t.Parallel()
 
@@ -697,6 +772,34 @@ func TestToggleEditMode_ShowsWindowWhenHidden(t *testing.T) {
 	fw.ToggleEditMode()
 	if fw.windowHidden.Load() {
 		t.Fatalf("ToggleEditMode should show hidden window")
+	}
+}
+
+func TestEnsureWindowVisible_ReappliesAlwaysOnTop(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+	w := a.NewWindow("test")
+	t.Cleanup(w.Close)
+
+	calls := 0
+	fw := &FloatingWindow{
+		Window: w,
+		topMostSet: func(enabled bool) bool {
+			calls++
+			return enabled
+		},
+	}
+	fw.windowHidden.Store(true)
+	fw.alwaysOnTop.Store(true)
+
+	fw.EnsureWindowVisible()
+	if fw.windowHidden.Load() {
+		t.Fatalf("EnsureWindowVisible should show hidden window")
+	}
+	if calls != 1 {
+		t.Fatalf("EnsureWindowVisible should reapply always-on-top once, calls=%d", calls)
 	}
 }
 
