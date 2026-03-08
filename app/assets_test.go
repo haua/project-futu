@@ -1,4 +1,4 @@
-package utils
+package app
 
 import (
 	"os"
@@ -6,7 +6,22 @@ import (
 	"testing"
 )
 
-func TestLoadAssetResource_FromCWDAssets(t *testing.T) {
+func TestLoadAssetResourceByName_FromEmbeddedAssets(t *testing.T) {
+	t.Parallel()
+
+	res := loadAssetResourceByName("icon-edit.png")
+	if res == nil {
+		t.Fatalf("embedded resource should not be nil")
+	}
+	if res.Name() != "icon-edit.png" {
+		t.Fatalf("resource name = %q, want icon-edit.png", res.Name())
+	}
+	if len(res.Content()) == 0 {
+		t.Fatalf("embedded resource content should not be empty")
+	}
+}
+
+func TestLoadAssetResourceByName_FromCWDAssets(t *testing.T) {
 	tmp := t.TempDir()
 	assetsDir := filepath.Join(tmp, "assets")
 	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
@@ -30,7 +45,7 @@ func TestLoadAssetResource_FromCWDAssets(t *testing.T) {
 		t.Fatalf("chdir temp dir: %v", err)
 	}
 
-	res := LoadAssetResource(fileName)
+	res := loadAssetResourceByName(fileName)
 	if res == nil {
 		t.Fatalf("resource should not be nil")
 	}
@@ -48,7 +63,7 @@ func TestLoadAssetResource_FromCWDAssets(t *testing.T) {
 	}
 }
 
-func TestLoadAssetResource_MissingReturnsNil(t *testing.T) {
+func TestLoadAssetResourceByName_MissingReturnsNil(t *testing.T) {
 	tmp := t.TempDir()
 	oldWD, err := os.Getwd()
 	if err != nil {
@@ -61,7 +76,7 @@ func TestLoadAssetResource_MissingReturnsNil(t *testing.T) {
 		t.Fatalf("chdir temp dir: %v", err)
 	}
 
-	res := LoadAssetResource("definitely-not-existing.asset")
+	res := loadAssetResourceByName("definitely-not-existing.asset")
 	if res != nil {
 		t.Fatalf("expected nil resource for missing file")
 	}

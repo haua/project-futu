@@ -8,12 +8,11 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/systray"
-	"github.com/haua/futu/app/utils"
 	sqweek "github.com/sqweek/dialog"
 )
 
 var (
-	loadAssetResource = utils.LoadAssetResource
+	loadAssetResource = loadAssetResourceByName
 	setOnTrayTapped   = systray.SetOnTapped
 )
 
