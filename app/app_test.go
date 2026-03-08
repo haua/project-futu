@@ -636,6 +636,32 @@ func TestRestoreCaptureExclude_FromPreference(t *testing.T) {
 	}
 }
 
+func TestRestoreCaptureExclude_ApplyFailureStillKeepsPersistedState(t *testing.T) {
+	t.Parallel()
+
+	a := fynetest.NewApp()
+	t.Cleanup(a.Quit)
+	a.Preferences().SetBool(captureExcludeSetKey, true)
+	a.Preferences().SetBool(captureExcludeKey, true)
+
+	calls := 0
+	fw := &FloatingWindow{
+		App: a,
+		displayAffinitySet: func(bool) bool {
+			calls++
+			return false
+		},
+	}
+
+	fw.restoreCaptureExclude()
+	if calls != 1 {
+		t.Fatalf("restore should still try apply once, calls=%d", calls)
+	}
+	if !fw.IsCaptureExcluded() {
+		t.Fatalf("persisted state should be kept even when apply fails")
+	}
+}
+
 func TestReapplyCaptureExclude_OnlyWhenEnabled(t *testing.T) {
 	t.Parallel()
 

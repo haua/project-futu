@@ -641,11 +641,11 @@ func (f *FloatingWindow) restoreCaptureExclude() {
 			exclude = prefs.Bool(captureExcludeKey)
 		}
 	}
-
-	if f.SetCaptureExcluded(exclude) {
-		return
-	}
-	f.excludeFromCapture.Store(false)
+	// Restore persisted toggle state first. Applying native affinity can fail
+	// transiently (for example before the native window is fully shown), but
+	// that should not discard the saved preference.
+	f.excludeFromCapture.Store(exclude)
+	_ = f.applyCaptureExcluded(exclude)
 }
 
 func (f *FloatingWindow) restoreAlwaysOnTop() {
