@@ -271,8 +271,8 @@ func TestNewPlayer_UsesSavedCanvasWidthForInitialZoom(t *testing.T) {
 		wantWidth  float32
 	}{
 		{name: "normal saved width", savedWidth: 100, wantWidth: 100},
-		{name: "clamped to min width pixels", savedWidth: 1, wantWidth: 10},
-		{name: "clamped to screen width pixels", savedWidth: 5000, wantWidth: 1920},
+		{name: "clamped to min width pixels", savedWidth: 1, wantWidth: 50},
+		{name: "clamped to 3x origin width", savedWidth: 5000, wantWidth: 600},
 	}
 
 	for _, tc := range tests {
@@ -324,8 +324,8 @@ func TestAdjustScaleByScroll_ZoomAndClamp(t *testing.T) {
 			Scrolled: fyne.Delta{DY: -1},
 		})
 	}
-	if got := p.Canvas.Size().Width; got != 10 {
-		t.Fatalf("zoom out should clamp to min width 10, got %v", got)
+	if got := p.Canvas.Size().Width; got != 50 {
+		t.Fatalf("zoom out should clamp to min width 50, got %v", got)
 	}
 }
 
@@ -351,6 +351,31 @@ func TestAdjustScaleByScroll_ClampMaxToScreenWidthPixels(t *testing.T) {
 
 	if got := p.Canvas.Size().Width; got != 300 {
 		t.Fatalf("zoom in should clamp to screen width 300, got %v", got)
+	}
+}
+
+func TestAdjustScaleByScroll_ClampMaxToThreeTimesOriginWidth(t *testing.T) {
+	oldGetScreenWidth := getScreenWidthPixels
+	getScreenWidthPixels = func() (int32, bool) { return 1920, true }
+	defer func() { getScreenWidthPixels = oldGetScreenWidth }()
+
+	a := fynetest.NewApp()
+	defer a.Quit()
+	w := a.NewWindow("test")
+	defer w.Close()
+
+	p := NewPlayer(a, w)
+	for i := 0; i < 200; i++ {
+		p.AdjustScaleByScroll(&fyne.ScrollEvent{
+			PointEvent: fyne.PointEvent{
+				AbsolutePosition: fyne.NewPos(100, 100),
+			},
+			Scrolled: fyne.Delta{DY: 1},
+		})
+	}
+
+	if got := p.Canvas.Size().Width; got != 600 {
+		t.Fatalf("zoom in should clamp to 3x origin width 600, got %v", got)
 	}
 }
 

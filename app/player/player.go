@@ -23,7 +23,8 @@ const lastCanvasWidthKey = "player.last_canvas_width"
 const (
 	defaultImageSize = 200
 	zoomStep         = 0.1
-	minWidthPixels   = 10
+	minWidthPixels   = 50
+	maxZoomByOrigin  = 3.0
 )
 
 const (
@@ -290,9 +291,12 @@ func (p *Player) zoomBoundsByPixels() (float32, float32) {
 	}
 
 	minZoom := float32(minWidthPixels) / baseWidthPixels
-	maxZoom := minZoom
+	maxZoom := float32(maxZoomByOrigin)
 	if screenWidth, ok := getScreenWidthPixels(); ok && screenWidth > 0 {
-		maxZoom = float32(screenWidth) / baseWidthPixels
+		screenMaxZoom := float32(screenWidth) / baseWidthPixels
+		if screenMaxZoom < maxZoom {
+			maxZoom = screenMaxZoom
+		}
 	}
 	if maxZoom < minZoom {
 		maxZoom = minZoom
